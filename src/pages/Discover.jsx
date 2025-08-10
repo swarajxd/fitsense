@@ -10,8 +10,8 @@ const Discover = () => {
   return (
     <>
       <Navbar />
-
-      <div className="masonry">
+      <div className="discover-container">
+<div className="masonry">
         {images.map((src, index) => (
           <div className="masonry-item" key={index}>
             <img src={src} alt={`img${index}`} />
@@ -28,6 +28,9 @@ const Discover = () => {
       <div className="upload-button">
         <FaPlus className="plus-icon" />
       </div>
+
+      </div>
+      
     </>
   );
 };

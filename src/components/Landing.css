@@ -1,0 +1,54 @@
+.landingcontainer {
+    width: 100%;
+    height: 1000px;
+  
+
+    display: flex;
+    justify-content: center;
+    position: relative;
+}
+.landingback{
+     background-size: cover;
+    margin-top: 40px;
+    background-repeat: no-repeat;
+    z-index: 900;
+}
+.landing-title {
+    font-size: 280px;
+    line-height: 0.9;
+    letter-spacing: -20px; /* adjust negative value to tighten */
+    position: absolute;
+    top: 80px;
+    color: var(--primary-dark);
+}
+.icons1{
+    position: absolute;
+    bottom:9%;
+    right:23%;
+    width: 250px;
+    height: 250px;
+    z-index: 999;
+}
+.randomtext1{
+    position: absolute;
+    top: 60%;
+    right:5%;
+    font-size: 20px;
+}
+.randomtext2{
+    font-size: 20px;
+    margin-bottom: 20px;
+}
+.randomtext3{
+     font-size: 14px;
+}
+.randomdiv1{
+position: absolute;
+    bottom:15%;
+    right:5%;
+}
+.randomdiv2{
+position: absolute;
+    bottom:15%;
+    left:5%;
+}

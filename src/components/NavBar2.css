@@ -1,0 +1,80 @@
+/* NavBar.css */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+:root {
+  /* Primary Colors */
+  --primary-dark: #1a1a1a;        /* Main background - deep charcoal/black */
+  --primary-white: #ffffff;       /* Main text and card backgrounds */
+  
+  /* Accent Colors */
+  --accent-orange: #d4633a;       /* Orange/rust color from jacket */
+  --accent-beige: #f5f1e8;        /* Cream/beige from pants */
+  --accent-olive: #8b8c5a;        /* Olive/sage green from outerwear */
+  --accent-warm-gray: #e8e5e0;    /* Light warm gray from cards */
+  
+  /* Text Colors */
+  --text-primary: #ffffff;        /* Main headings on dark background */
+  --text-secondary: #cccccc;      /* Secondary text on dark background */
+  --text-dark: #333333;          /* Text on light backgrounds */
+  --text-muted: #999999;         /* Muted/subtle text */
+  
+  /* Neutral Grays */
+  --gray-100: #f8f8f8;           /* Lightest gray */
+  --gray-200: #e8e8e8;           /* Light gray */
+  --gray-300: #d3d3d3;           /* Medium light gray */
+  --gray-400: #a8a8a8;           /* Medium gray */
+  --gray-500: #6b6b6b;           /* Dark gray */
+  
+  /* Card/Surface Colors */
+  --surface-light: #f9f9f9;      /* Light card surfaces */
+  --surface-warm: #f5f2ee;       /* Warm card surfaces */
+}
+.navbar2 {
+    width: 100%;
+    height: 70px;
+   background-color: transparent;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 40px;
+
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+.info h1{
+     font-size: 20px;
+    font-weight: 400;
+    color: black;
+    margin: 0;
+}
+
+.logocontainer h1 {
+    font-size: 40px;
+    font-weight: 600;
+    color: var(--primary-dark);
+     
+    margin: 0;
+}
+
+.nav-links {
+    display: flex;
+    gap: 30px;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: var(--primary-dark);
+    font-size: 16px;
+    font-weight: 300;
+    transition: color 0.3s ease;
+}
+
+.nav-links a:hover {
+    color: var(--accent-orange);
+ 
+}

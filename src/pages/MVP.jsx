@@ -1,0 +1,21 @@
+
+import NavBar2 from'../components/NavBar2';
+
+import Landing from '../components/Landing';
+import AboutUs from '../components/AboutUs';
+import Explore from '../components/Explore';
+
+
+export default function MVP(){
+
+
+  return (
+    <>
+      <NavBar2/>
+      <Landing/>
+      <AboutUs/>
+      <Explore/>
+    </>
+  )
+}
+
