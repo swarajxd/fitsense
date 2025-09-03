@@ -44,7 +44,7 @@
   left: 50%;
   transform: translateX(-50%);
   opacity: 1;
-  
+  margin-top: 30px;
   transition: all 0.3s ease;
 }
 

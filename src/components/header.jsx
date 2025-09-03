@@ -15,10 +15,10 @@ export default function Header() {
         <div className="logo">FITSENSE</div>
         
         <nav className="nav-icons">
-          <GoHome size={22} />
-          <IoSearchSharp size={22} />
-          <FiCamera size={22} />
-          <FaRegHeart size={22} />
+          <GoHome size={42} />
+          <IoSearchSharp size={42} />
+          <FiCamera size={42} />
+          <FaRegHeart size={42} />
           
 
         </nav>
