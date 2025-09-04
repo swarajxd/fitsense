@@ -28,6 +28,7 @@ const Profile = () => {
   return (
     <>
       <Header />
+      <div className="bodyofprofile">
       <div className="profile-container">
         <section className="profile-info">
           <div className="profile-left">
@@ -137,6 +138,7 @@ const Profile = () => {
         <footer className="footer-circle">
           <div className="circle-btn"></div>
         </footer>
+      </div>
       </div>
     </>
   );

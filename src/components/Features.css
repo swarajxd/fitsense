@@ -1,0 +1,32 @@
+.feature-container {
+  width: 100%;
+  height: 1000px;
+  background-color: var(--primary-white);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+}
+
+.features-body{
+    position: absolute;
+
+    width: 100%;
+    height: 100%;
+        max-width: 1600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 80px;
+
+}
+.feature-text2{
+    font-size: 20px;
+    color:var(--accent-orange);
+    margin-bottom: -10px;
+}
+.feature-text1{
+    font-size: 50px;
+    font-weight: 500;
+   
+}
