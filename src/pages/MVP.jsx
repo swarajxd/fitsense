@@ -5,6 +5,8 @@ import Landing from '../components/Landing';
 import AboutUs from '../components/AboutUs';
 import Explore from '../components/Explore';
 import Features from '../components/Features';
+import Reviews from '../components/Reviews';
+import Footer from '../components/Footer'
 
 
 export default function MVP(){
@@ -17,6 +19,8 @@ export default function MVP(){
       <AboutUs/>
       <Explore/>
       <Features/>
+      <Reviews/>
+      <Footer/>
     </>
   )
 }
