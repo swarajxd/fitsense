@@ -18,9 +18,9 @@ function App() {
 
       {/* Routes */}
       <Routes>
-        <Route path="/Discover" element={<Discover />} />
-        <Route path="/Login" element={<LoginPage />} />
-        <Route path="/Profile" element={<Profile />} />
+        <Route path="/discover" element={<Discover />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/" element={<MVP />} />
       </Routes>

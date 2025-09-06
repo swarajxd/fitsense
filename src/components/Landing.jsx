@@ -50,13 +50,6 @@ export default function Landing(){
           your unique style.
         </p>
       </div>
-
-      {/* Get Started Button (Clerk Sign In modal) */}
-      <div className="get-started-wrapper">
-        <SignInButton mode="modal">
-          <button className="get-started-btn">Get Started</button>
-        </SignInButton>
-      </div>
     </div>
   );
 }

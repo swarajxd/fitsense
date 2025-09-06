@@ -1,33 +1,62 @@
-/* Signup.jsx */
-import React, { useState } from "react";
+// src/pages/Signup.jsx
+import React, { useEffect, useState } from "react";
 import "./Signup.css";
 import googleLogo from "../assets/google.png";
 import facebookLogo from "../assets/facebook.png";
 import modelImage from "../assets/model1.png";
+import { useSignUp, SignUpButton } from "@clerk/clerk-react";
+import { useNavigate, Link } from "react-router-dom";
 
 export default function SignupPage() {
+  const navigate = useNavigate();
+  const { isLoaded, signUp, setActive } = useSignUp();
   const [form, setForm] = useState({
-    name: "",
+    username: "",
     email: "",
     password: "",
     confirm: "",
     terms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+
+  // Runtime check for Clerk configuration
+  useEffect(() => {
+    const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+    
+    if (!publishableKey) {
+      console.warn("⚠️ VITE_CLERK_PUBLISHABLE_KEY is missing from environment variables!");
+      setError("Authentication service is not properly configured.");
+      return;
+    }
+    
+    // Check if using development keys (they start with pk_test_)
+    if (publishableKey.startsWith('pk_test_')) {
+      console.warn("🔧 Clerk is running with development keys. Make sure to use production keys in production!");
+    }
+  }, []);
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
     setForm((s) => ({ ...s, [name]: type === "checkbox" ? checked : value }));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSuccess("");
+    
+    if (!isLoaded) {
+      setError("Authentication system is not ready yet.");
+      return;
+    }
 
-    if (!form.name || !form.email || !form.password || !form.confirm) {
+    // Form validation
+    if (!form.username.trim() || !form.email.trim() || !form.password || !form.confirm) {
       setError("Please fill out all fields.");
       return;
     }
@@ -42,11 +71,139 @@ export default function SignupPage() {
       return;
     }
 
-    // Replace this with real signup flow (API call / Firebase / Supabase, etc.)
-    setSuccess("Account created — (demo). You can now log in.");
-    console.log("Sign up data:", form);
-    // reset form (optional)
-    setForm({ name: "", email: "", password: "", confirm: "", terms: false });
+    try {
+      setLoading(true);
+
+      // Create sign-up attempt with Clerk
+      const result = await signUp.create({
+        emailAddress: form.email.trim(),
+        password: form.password,
+        username: form.username.trim(),
+      });
+
+      console.log("Clerk signUp result:", result);
+
+      if (result.status === "complete") {
+        // Sign-up completed immediately (no verification needed)
+        await setActive({ session: result.createdSessionId });
+        setSuccess("Account created successfully! Redirecting...");
+        setTimeout(() => navigate("/discover"), 1500);
+      } else if (result.status === "missing_requirements") {
+        // Handle email verification requirement
+        if (result.unverifiedFields?.includes("email_address")) {
+          // Send verification email
+          await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+          setPendingVerification(true);
+          setSuccess("Please check your email for a verification code to complete your account setup.");
+        } else {
+          setError("Additional information is required to complete sign-up.");
+        }
+      } else {
+        // Other statuses like needs_email_verification
+        setSuccess("Sign-up initiated! Please check your email or use the button below to complete verification.");
+        setPendingVerification(true);
+      }
+    } catch (err) {
+      console.error("Sign up error:", err);
+      
+      // Handle specific Clerk errors
+      if (err.errors && err.errors.length > 0) {
+        const errorMessages = err.errors.map(error => error.longMessage || error.message).join(", ");
+        setError(errorMessages);
+      } else {
+        setError(err.message || "Failed to create account. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyEmail(e) {
+    e.preventDefault();
+    if (!verificationCode.trim()) {
+      setError("Please enter the verification code.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      
+      const completeSignUp = await signUp.attemptEmailAddressVerification({
+        code: verificationCode.trim(),
+      });
+
+      if (completeSignUp.status === "complete") {
+        await setActive({ session: completeSignUp.createdSessionId });
+        setSuccess("Email verified! Account created successfully. Redirecting...");
+        setTimeout(() => navigate("/discover"), 1500);
+      } else {
+        setError("Verification failed. Please check your code and try again.");
+      }
+    } catch (err) {
+      console.error("Verification error:", err);
+      if (err.errors && err.errors.length > 0) {
+        setError(err.errors[0].longMessage || err.errors[0].message);
+      } else {
+        setError("Verification failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Show verification form if pending
+  if (pendingVerification) {
+    return (
+      <div className="login-container">
+        <h1 className="logo">FITSENSE</h1>
+
+        <div className="login-form-section">
+          <h2 className="login-h2">Verify Your Email</h2>
+          <p className="welcome-text">We've sent a verification code to {form.email}</p>
+
+          <form onSubmit={handleVerifyEmail} className="signup-form">
+            <label htmlFor="verificationCode">Verification Code</label>
+            <input
+              id="verificationCode"
+              name="verificationCode"
+              className="login-input"
+              type="text"
+              placeholder="Enter the 6-digit code"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+            />
+
+            {error && <p className="form-error">{error}</p>}
+            {success && <p className="form-success">{success}</p>}
+
+            <button className="login-btn" type="submit" disabled={loading}>
+              {loading ? "Verifying..." : "Verify Email"}
+            </button>
+          </form>
+
+          <p className="have-account" style={{ marginTop: '2rem' }}>
+            <button 
+              onClick={() => setPendingVerification(false)}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                color: 'inherit', 
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                fontSize: 'inherit'
+              }}
+            >
+              Back to Sign Up Form
+            </button>
+          </p>
+        </div>
+
+        <div className="login-image-section">
+          <img src={modelImage} alt="Model" className="model-img" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -57,15 +214,18 @@ export default function SignupPage() {
         <h2 className="login-h2">Create Account</h2>
         <p className="welcome-text">Join Fitsense — create your account to get started</p>
 
+        {/* Clerk captcha placeholder (Smart CAPTCHA) */}
+        <div id="clerk-captcha" style={{ position: "relative", zIndex: 5 }} />
+
         <form onSubmit={handleSubmit} className="signup-form">
-          <label htmlFor="name">Full Name</label>
+          <label htmlFor="username">Username</label>
           <input
-            id="name"
-            name="name"
+            id="username"
+            name="username"
             className="login-input"
             type="text"
-            placeholder="Enter your full name"
-            value={form.name}
+            placeholder="Pick a username"
+            value={form.username}
             onChange={handleChange}
           />
 
@@ -75,7 +235,7 @@ export default function SignupPage() {
             name="email"
             className="login-input"
             type="email"
-            placeholder="Enter your email"
+            placeholder="Enter your email address"
             value={form.email}
             onChange={handleChange}
           />
@@ -91,14 +251,14 @@ export default function SignupPage() {
               value={form.password}
               onChange={handleChange}
             />
-            <span
+            <button
+              type="button"
               className="eye-icon"
-              role="button"
               aria-label={showPassword ? "Hide password" : "Show password"}
               onClick={() => setShowPassword((s) => !s)}
             >
               {showPassword ? "🙈" : "👁"}
-            </span>
+            </button>
           </div>
 
           <label htmlFor="confirm">Confirm Password</label>
@@ -128,8 +288,8 @@ export default function SignupPage() {
           {error && <p className="form-error">{error}</p>}
           {success && <p className="form-success">{success}</p>}
 
-          <button className="login-btn" type="submit">
-            Sign up
+          <button className="login-btn" type="submit" disabled={loading}>
+            {loading ? "Creating account..." : "Sign up"}
           </button>
         </form>
 
@@ -138,16 +298,21 @@ export default function SignupPage() {
         </div>
 
         <div className="social-login">
-          <button className="social-btn">
-            <img src={googleLogo} alt="Google" /> Google
-          </button>
-          <button className="social-btn">
-            <img src={facebookLogo} alt="Facebook" /> Facebook
-          </button>
+          <SignUpButton mode="modal" forceRedirectUrl="/discover">
+            <button className="social-btn">
+              <img src={googleLogo} alt="Google" /> Continue with Google
+            </button>
+          </SignUpButton>
+
+          <SignUpButton mode="modal" forceRedirectUrl="/discover">
+            <button className="social-btn">
+              <img src={facebookLogo} alt="Facebook" /> Continue with Facebook
+            </button>
+          </SignUpButton>
         </div>
 
         <p className="have-account">
-          Already have an account? <a href="/login">Log in</a>
+          Already have an account? <Link to="/login">Log in</Link>
         </p>
       </div>
 
