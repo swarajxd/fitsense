@@ -4,7 +4,7 @@ import "./Signup.css";
 import googleLogo from "../assets/google.png";
 import facebookLogo from "../assets/facebook.png";
 import modelImage from "../assets/model1.png";
-import { useSignUp, SignUpButton } from "@clerk/clerk-react";
+import { useSignUp } from "@clerk/clerk-react";
 import { useNavigate, Link } from "react-router-dom";
 
 export default function SignupPage() {
@@ -23,6 +23,7 @@ export default function SignupPage() {
   const [success, setSuccess] = useState("");
   const [pendingVerification, setPendingVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
+  const [socialLoading, setSocialLoading] = useState(null); // Track which social button is loading
 
   // Runtime check for Clerk configuration
   useEffect(() => {
@@ -100,7 +101,7 @@ export default function SignupPage() {
         }
       } else {
         // Other statuses like needs_email_verification
-        setSuccess("Sign-up initiated! Please check your email or use the button below to complete verification.");
+        setSuccess("Sign-up initiated! Please check your email to complete verification.");
         setPendingVerification(true);
       }
     } catch (err) {
@@ -149,6 +150,50 @@ export default function SignupPage() {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Handle OAuth sign-up with redirect
+  async function handleOAuthSignUp(strategy) {
+    if (!isLoaded) return;
+    
+    try {
+      setSocialLoading(strategy);
+      setError("");
+      
+      await signUp.authenticateWithRedirect({
+        strategy,
+        redirectUrl: "/discover",
+        redirectUrlComplete: "/discover",
+      });
+    } catch (err) {
+      console.error(`${strategy} sign up error:`, err);
+      setError(err?.errors?.[0]?.message || err?.message || `${strategy} sign up failed`);
+      setSocialLoading(null);
+    }
+  }
+
+  // Alternative: Handle OAuth sign-up with popup
+  async function handleOAuthSignUpPopup(strategy) {
+    if (!isLoaded) return;
+    
+    try {
+      setSocialLoading(strategy);
+      setError("");
+      
+      const result = await signUp.authenticateWithPopup({
+        strategy,
+      });
+
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        navigate("/discover");
+      }
+    } catch (err) {
+      console.error(`${strategy} popup sign up error:`, err);
+      setError(err?.errors?.[0]?.message || err?.message || `${strategy} sign up failed`);
+    } finally {
+      setSocialLoading(null);
     }
   }
 
@@ -298,17 +343,45 @@ export default function SignupPage() {
         </div>
 
         <div className="social-login">
-          <SignUpButton mode="modal" forceRedirectUrl="/discover">
-            <button className="social-btn">
-              <img src={googleLogo} alt="Google" /> Continue with Google
-            </button>
-          </SignUpButton>
+          {/* Direct Google OAuth - uses redirect by default */}
+          <button 
+            className="social-btn" 
+            onClick={() => handleOAuthSignUp("oauth_google")}
+            disabled={socialLoading !== null}
+          >
+            <img src={googleLogo} alt="Google" /> 
+            {socialLoading === "oauth_google" ? "Connecting..." : "Continue with Google"}
+          </button>
 
-          <SignUpButton mode="modal" forceRedirectUrl="/discover">
-            <button className="social-btn">
-              <img src={facebookLogo} alt="Facebook" /> Continue with Facebook
-            </button>
-          </SignUpButton>
+          {/* Direct Facebook OAuth - uses redirect by default */}
+          <button 
+            className="social-btn" 
+            onClick={() => handleOAuthSignUp("oauth_facebook")}
+            disabled={socialLoading !== null}
+          >
+            <img src={facebookLogo} alt="Facebook" /> 
+            {socialLoading === "oauth_facebook" ? "Connecting..." : "Continue with Facebook"}
+          </button>
+
+          {/* Alternative: Uncomment these to use popup instead of redirect
+          <button 
+            className="social-btn" 
+            onClick={() => handleOAuthSignUpPopup("oauth_google")}
+            disabled={socialLoading !== null}
+          >
+            <img src={googleLogo} alt="Google" /> 
+            {socialLoading === "oauth_google" ? "Connecting..." : "Continue with Google (Popup)"}
+          </button>
+
+          <button 
+            className="social-btn" 
+            onClick={() => handleOAuthSignUpPopup("oauth_facebook")}
+            disabled={socialLoading !== null}
+          >
+            <img src={facebookLogo} alt="Facebook" /> 
+            {socialLoading === "oauth_facebook" ? "Connecting..." : "Continue with Facebook (Popup)"}
+          </button>
+          */}
         </div>
 
         <p className="have-account">

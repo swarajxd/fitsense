@@ -19,7 +19,7 @@ export default function NavBar2() {
       <div className="nav-links">
         <SignedOut>
           {/* SPA nav to your custom Signup page */}
-          <Link to="/signup" className="nav-link">Signup</Link>
+          
           {/* also provide Login link when signed out */}
           <Link to="/login" className="nav-link">Login</Link>
         </SignedOut>
