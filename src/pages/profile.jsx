@@ -8,9 +8,15 @@ import post2 from "../assets/post2.jpg";
 import post3 from "../assets/post3.jpg";
 import post4 from "../assets/post4.jpg";
 import post5 from "../assets/post5.jpg";
-// sample posts array
-const postImages = [post1, post2, post3, post4, post5];
 
+// sample posts array with additional metadata
+const postImages = [
+  { src: post1, caption: "Summer vibes and good times ☀️", creator: "Taha Sayed", creatorUsername: "taha_313" },
+  { src: post2, caption: "Casual Friday outfit inspiration", creator: "Taha Sayed", creatorUsername: "taha_313" },
+  { src: post3, caption: "Weekend adventures begin here", creator: "Taha Sayed", creatorUsername: "taha_313" },
+  { src: post4, caption: "Minimalist aesthetic goals", creator: "Taha Sayed", creatorUsername: "taha_313" },
+  { src: post5, caption: "New season, new style", creator: "Taha Sayed", creatorUsername: "taha_313" },
+];
 
 // demo images (replace with your own)
 const demoImgs = [
@@ -42,6 +48,18 @@ export default function profile2() {
     setIsEditing(false);
   };
 
+  const handleFollow = (username) => {
+    console.log(`Following ${username}`);
+  };
+
+  const handleShare = (postId) => {
+    console.log(`Sharing post ${postId}`);
+  };
+
+  const handleEdit = (postId) => {
+    console.log(`Editing post ${postId}`);
+  };
+
   return (
     <>
       <Header />
@@ -67,7 +85,7 @@ export default function profile2() {
                   </div>
 
                   <div className="fs-actions">
-                    <button className="fs-btn fs-btn-follow">Follow</button>
+                    <button className="fs-btn fs-btn-follow">Share</button>
                     <button
                       className="fs-btn fs-btn-ghost"
                       onClick={() => setIsEditing(true)} // ✅ open modal
@@ -90,15 +108,61 @@ export default function profile2() {
             <div className="fs-gallery-wrap">
             <section className="fs-gallery" aria-label="Posts gallery">
               {Array.from({ length: 20 }).map((_, index) => {
-                const img = postImages[index % postImages.length]; // repeat images
+                const postData = postImages[index % postImages.length]; // repeat images
                 return (
                   <div key={index} className="fs-gallery-item">
                     <img
-                      src={img}
+                      src={postData.src}
                       alt={`Post ${index + 1}`}
                       loading="lazy"
                     />
                     
+                    {/* Post Hover Overlay */}
+                    <div className="fs-post-overlay">
+                      <div className="fs-post-overlay-content">
+                        <div className="fs-post-header">
+                          <div className="fs-post-creator">
+                            <div className="fs-post-creator-avatar">
+                              <img src={user.profilePic} alt={postData.creator} />
+                            </div>
+                            <div className="fs-post-creator-info">
+                              <div className="fs-post-creator-name">{postData.creator}</div>
+                              <div className="fs-post-creator-username">@{postData.creatorUsername}</div>
+                            </div>
+                            <div className="fs-post-verified">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="fs-post-caption">
+                          {postData.caption}
+                        </div>
+                        
+                        <div className="fs-post-actions">
+                          <button 
+                            className="fs-post-btn fs-post-btn-follow"
+                            onClick={() => handleFollow(postData.creatorUsername)}
+                          >
+                            Follow +
+                          </button>
+                          <button 
+                            className="fs-post-btn fs-post-btn-ghost"
+                            onClick={() => handleShare(index + 1)}
+                          >
+                            Share
+                          </button>
+                          <button 
+                            className="fs-post-btn fs-post-btn-ghost"
+                            onClick={() => handleEdit(index + 1)}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
