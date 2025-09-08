@@ -1,248 +1,182 @@
-// Inbox.jsx
+// src/pages/Inbox.jsx
 import React, { useEffect, useRef, useState } from "react";
 import Header from "../components/header";
 import "./Inbox.css";
-
-import { db } from "../firebase"; // your firebase.js that exports Firestore instance
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  doc,
-  getDocs,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
-
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import { FiImage } from "react-icons/fi";   // feather image icon (ok)
-import { FaPaperPlane } from "react-icons/fa"; // font-awesome paper plane
-
-
-let tryGetUser = () => ({ id: "me", name: "You" });
-try {
-  // optional: pick up Clerk user if you're using Clerk
-  // eslint-disable-next-line no-undef
-  const { useUser } = require("@clerk/clerk-react");
-  const u = useUser?.();
-  if (u && u.user) tryGetUser = () => ({ id: u.user.id, name: u.user.firstName || u.user.username || "You" });
-} catch (e) {
-  // ignore — fallback to 'me'
-}
+import { FaPaperPlane } from "react-icons/fa";
 
 /**
- * Firestore structure used:
- * - /threads (collection)
- *    - {threadId} (doc)
- *       - title, members...
- *       - messages (subcollection)
- *           - {messageId} { text, fromId, fromName, type, attachmentUrl, createdAt }
+ * Demo Inbox (toggle behavior)
+ * - clicking the same user will close the chat (activeThread -> null)
+ * - clicking another user opens that chat
+ * - messages stored locally in messagesMap
  */
 
 export default function Inbox() {
-  const [threads, setThreads] = useState([]);
-  const [activeThread, setActiveThread] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const demoUsers = [
+    { id: "user1", username: "user1", displayName: "User One" },
+    { id: "user2", username: "user2", displayName: "User Two" },
+    { id: "user3", username: "user3", displayName: "User Three" },
+  ];
+
+  const currentUser = { id: "me", username: "you", displayName: "You" };
+
+  const [users] = useState(demoUsers);
+  const [activeThread, setActiveThread] = useState(null); // null => centered view
+  const [messagesMap, setMessagesMap] = useState(() => ({
+    user1: [
+      { id: "m1", fromId: "user1", fromName: "User One", text: "Hey! Welcome to the demo chat.", createdAt: Date.now() - 1000 * 60 * 60 },
+      { id: "m2", fromId: "me", fromName: "You", text: "Thanks — this looks great!", createdAt: Date.now() - 1000 * 60 * 30 },
+    ],
+    user2: [{ id: "m3", fromId: "user2", fromName: "User Two", text: "Hello from user2.", createdAt: Date.now() - 1000 * 60 * 20 }],
+    user3: [],
+  }));
+
   const [input, setInput] = useState("");
-  const [file, setFile] = useState(null);
-  const messagesRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const messagesRefEl = useRef(null);
 
-  const storage = getStorage(); // uses same firebase app
+  const filteredUsers = users.filter((u) => {
+    const t = searchTerm.trim().toLowerCase();
+    if (!t) return true;
+    return (u.displayName || u.username).toLowerCase().includes(t) || (u.username || "").toLowerCase().includes(t);
+  });
 
-  // load threads list (subscribe realtime)
   useEffect(() => {
-    const q = query(collection(db, "threads"), orderBy("updatedAt", "desc"));
-    const unsub = onSnapshot(q, async (snap) => {
-      const list = await Promise.all(
-        snap.docs.map(async (d) => {
-          const data = d.data();
-          return { id: d.id, ...data };
-        })
-      );
-      setThreads(list);
-      // if no active thread, pick the first
-      if (!activeThread && list?.length) setActiveThread(list[0]);
-    });
-    return () => unsub();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!activeThread) return;
+    setTimeout(() => {
+      if (messagesRefEl.current) messagesRefEl.current.scrollTop = messagesRefEl.current.scrollHeight;
+    }, 50);
+  }, [messagesMap, activeThread]);
 
-  // when activeThread changes, subscribe to messages
-  useEffect(() => {
-    if (!activeThread) {
-      setMessages([]);
+  function openChatFor(user) {
+    // toggle: if clicking currently active user -> close chat (center view)
+    if (activeThread && activeThread.id === user.id) {
+      setActiveThread(null);
+      setSearchTerm("");
+      setInput("");
       return;
     }
-    const msgsRef = collection(db, "threads", activeThread.id, "messages");
-    const q = query(msgsRef, orderBy("createdAt"));
-    const unsub = onSnapshot(q, (snap) => {
-      const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setMessages(msgs);
-    });
-
-    // mark thread read / update lastSeen etc if you want:
-    // setDoc(doc(db, "threads", activeThread.id), { unread: 0 }, { merge: true });
-
-    return () => unsub();
-  }, [activeThread]);
-
-  // auto-scroll on new messages
-  useEffect(() => {
-    if (messagesRef.current) {
-      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  // create a new thread (helper)
-  async function createThread(title = "New chat") {
-    const user = tryGetUser();
-    const newId = `${Date.now()}`; // or use addDoc for auto id
-    const tRef = doc(db, "threads", newId);
-    await setDoc(tRef, {
-      title,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      members: [user.id],
-    });
-    // after creation, set active to new thread
-    setActiveThread({ id: newId, title });
+    // otherwise open this user's chat
+    setActiveThread(user);
+    setSearchTerm("");
+    setInput("");
   }
 
-  async function handleSend() {
-    if (!activeThread) return alert("Select or create a thread first.");
-    if (!input.trim() && !file) return;
+  function handleSend() {
+    if (!activeThread) return;
+    const txt = input.trim();
+    if (!txt) return;
 
-    const user = tryGetUser();
+    const newMsg = {
+      id: `local_${Date.now()}`,
+      fromId: currentUser.id,
+      fromName: currentUser.displayName,
+      text: txt,
+      createdAt: Date.now(),
+    };
 
-    // if file present: upload to Firebase Storage then create a message with attachmentUrl
-    if (file) {
-      try {
-        const sr = storageRef(storage, `threads/${activeThread.id}/attachments/${Date.now()}_${file.name}`);
-        const snap = await uploadBytes(sr, file);
-        const url = await getDownloadURL(snap.ref);
-
-        await addDoc(collection(db, "threads", activeThread.id, "messages"), {
-          type: "post", // indicates shared post/attachment
-          text: input.trim() || "",
-          fromId: user.id,
-          fromName: user.name,
-          attachmentUrl: url,
-          createdAt: serverTimestamp(),
-        });
-
-        // update thread last activity
-        await setDoc(
-          doc(db, "threads", activeThread.id),
-          { updatedAt: serverTimestamp() },
-          { merge: true }
-        );
-
-        setInput("");
-        setFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = null;
-        return;
-      } catch (err) {
-        console.error("upload failed", err);
-        alert("Upload failed. Check console.");
-        return;
-      }
-    }
-
-    // plain text message
-    await addDoc(collection(db, "threads", activeThread.id, "messages"), {
-      type: "message",
-      text: input.trim(),
-      fromId: user.id,
-      fromName: user.name,
-      createdAt: serverTimestamp(),
+    setMessagesMap((prev) => {
+      const prevList = prev[activeThread.id] || [];
+      return { ...prev, [activeThread.id]: [...prevList, newMsg] };
     });
-
-    // update thread
-    await setDoc(doc(db, "threads", activeThread.id), { updatedAt: serverTimestamp() }, { merge: true });
 
     setInput("");
   }
 
-  function onFileChange(e) {
-    const f = e.target.files?.[0];
-    if (f) setFile(f);
+  function handleKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   }
 
+  const activeMessages = (activeThread && messagesMap[activeThread.id]) || [];
+  const pageClass = !activeThread ? "centered" : "with-chat";
+
   return (
-    <div className="inbox-page">
+    <div className={`inbox-page ${pageClass}`}>
       <Header />
 
       <main className="inbox-main">
-        <aside className="threads-col">
-          <div className="threads-top">
-            <h3>Chats</h3>
-            <button className="btn-new" onClick={() => createThread("Conversation " + (threads.length + 1))}>
-              + New
-            </button>
+        {/* Left column: search + user list */}
+        <aside className={`threads-col ${!activeThread ? "center-mode" : "left-mode"}`}>
+          <div className="search-wrap">
+            <input
+              className="search-input"
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="Search users"
+            />
           </div>
 
-          <div className="threads-list">
-            {threads.map((t) => (
+          <div className="threads-list" aria-label="Users list">
+            {filteredUsers.map((u) => (
               <button
-                key={t.id}
-                className={`thread-item ${activeThread?.id === t.id ? "active" : ""}`}
-                onClick={() => setActiveThread(t)}
+                key={u.id}
+                className={`thread-item ${activeThread?.id === u.id ? "active" : ""}`}
+                onClick={() => openChatFor(u)}
               >
-                <div className="thread-title">{t.title || t.id}</div>
-                <div className="thread-sub">{t.lastText || "No messages yet"}</div>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <img  
+                  src="/pfp.jpg"  
+                alt={`${u.displayName} avatar`}  
+                  className="user-circle-small"  
+                /> 
+                <div style={{ textAlign: "left" }}>
+                  <div className="thread-title">{u.displayName}</div>
+                  <div className="thread-sub">@{u.username}</div>
+                </div>
+              </div>
               </button>
             ))}
           </div>
         </aside>
 
-        <section className="messages-col">
+        {/* Right column: messages (hidden until a user is selected) */}
+        <section className={`messages-col ${activeThread ? "visible" : "hidden"}`}>
           <div className="messages-header">
-            <div className="thread-name">{activeThread?.title || "Select a chat"}</div>
+            <div className="thread-name">{activeThread ? activeThread.displayName : "Select a user"}</div>
           </div>
 
-          <div className="messages" ref={messagesRef}>
-            {messages.length === 0 && <div className="empty">No messages — say hi 👋</div>}
+          <div className="messages" ref={messagesRefEl}>
+            {(!activeThread || activeMessages.length === 0) && (
+              <div className="empty">{activeThread ? "No messages yet — say hi 👋" : "Select a user to view chat"}</div>
+            )}
 
-            {messages.map((m) => (
-              <div key={m.id} className={`msg ${m.fromId === tryGetUser().id ? "me" : "bot"}`}>
+            {activeMessages.map((m) => (
+              <div key={m.id} className={`msg ${m.fromId === currentUser.id ? "me" : "bot"}`}>
                 <div className="msg-meta">
-                  <div className="msg-sender">{m.fromName ?? (m.fromId === tryGetUser().id ? "You" : "Guest")}</div>
-                  <div className="msg-time">{m.createdAt?.toDate ? new Date(m.createdAt.toDate()).toLocaleTimeString() : ""}</div>
+                  <div className="msg-sender">{m.fromName}</div>
+                  <div className="msg-time">{new Date(m.createdAt).toLocaleTimeString()}</div>
                 </div>
-
-                {m.attachmentUrl && (
-                  <div className="shared-post">
-                    <img src={m.attachmentUrl} alt="shared" />
-                    {m.text && <div className="caption">{m.text}</div>}
-                  </div>
-                )}
-
                 {m.text && <div className="text">{m.text}</div>}
               </div>
             ))}
           </div>
 
-          <div className="input-area">
-            <input ref={fileInputRef} type="file" className="visually-hidden" accept="image/*" onChange={onFileChange} />
-            <button className="attach-btn" onClick={() => fileInputRef.current?.click()}>
-              <FiImage />
-            </button>
-
+        {/* Composer: full-width input + compact send button */}
+        <div className="composer">
+          <div className="composer-inner">
             <textarea
-              className="message-input"
+              className="composer-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type a message or caption..."
+              placeholder={activeThread ? `Message ${activeThread.displayName}...` : "Select a user first"}
               rows={1}
+              onKeyDown={handleKeyDown}
+              disabled={!activeThread}
             />
-
-            <button className="send-btn" onClick={handleSend}>
+            <button
+              className="composer-send"
+              onClick={handleSend}
+              aria-label="Send message"
+              disabled={!activeThread || !input.trim()}
+            >
               <FaPaperPlane />
             </button>
           </div>
+        </div>
         </section>
       </main>
     </div>

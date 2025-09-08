@@ -1,180 +1,177 @@
-/* Inbox.css - matches your app theme */
-:root {
+:root{
   --bg: #050505;
   --panel: rgba(255,255,255,0.03);
   --muted: rgba(255,255,255,0.55);
   --text: #fff;
   --orange: #ff8a00;
-  --header-height: 72px; /* sync with your header if needed */
+
+  /* use the header's variable so we stay in sync with Header.css */
+  --header-height: var(--app-header-height, 64px);
+}
+
+.composer {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center; /* keep inner aligned with messages content */
+  margin-top: 12px;
+}
+
+/* composer-inner matches the messages' container width and padding behavior */
+.composer-inner {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  box-sizing: border-box;
+  /* optional: visually match the messages' look with a subtle background */
+  padding: 0; /* no extra padding so width aligns perfectly with .messages */
+}
+
+/* input grows to fill available space */
+.composer-input {
+  flex: 1;
+  min-height: 56px;                /* larger input height like your design */
+  max-height: 160px;               /* keep it bounded if autop-expand added later */
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: transparent;
+  color: var(--text);
+  outline: none;
+  resize: none;
+  box-sizing: border-box;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+/* compact square send button to the right of the textarea */
+.composer-send {
+  width: 52px;                      /* square button */
+  height: 52px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: linear-gradient(90deg, var(--orange), #ff6a00);
+  color: #080808;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.35);
+}
+
+/* disabled state */
+.composer-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* remove previous conflicting rules if present (safe overrides) */
+.input-area,
+.input-area-inline,
+.message-input,
+.send-btn,
+.send-btn-inline {
+  display: none !important;
 }
 
 .inbox-page {
-  min-height: 100vh;
+  position: relative;
   background: var(--bg);
-  color: var(--text);
-  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
+  min-height: 100vh;
 }
 
+.inbox-page::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--header-height);
+  background: var(--bg); /* solid black strip behind header */
+  z-index: 0;
+}
+
+/* page-level */
+.inbox-page{
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,Arial;
+}
+
+/* align page content immediately under fixed header.
+   we use the header's variable so the spacing always matches the real header height. */
 .inbox-main {
   max-width: 1200px;
-  margin: calc(var(--header-height) + 28px) auto;
+  margin: var(--header-height) auto 0 auto; /* start exactly below header, no white gap */
   padding: 18px;
   display: flex;
   gap: 16px;
   align-items: flex-start;
   box-sizing: border-box;
+  min-height: 68vh;
 }
 
-/* left threads column */
-.threads-col {
-  width: 280px;
-}
-.threads-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.btn-new {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.06);
-  color: var(--text);
-  padding: 6px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.threads-list {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.thread-item {
-  background: var(--panel);
-  border: 1px solid rgba(255,255,255,0.04);
-  padding: 10px;
-  border-radius: 8px;
-  text-align: left;
-  color: var(--text);
-  cursor: pointer;
-}
-.thread-item.active {
-  outline: 2px solid rgba(255,138,0,0.12);
-}
-.thread-title {
-  font-weight: 700;
-}
-.thread-sub {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 13px;
+
+/* THREADS column */
+/* when centered, the threads-col sits in the middle */
+.threads-col{display:flex;flex-direction:column;gap:12px;transition:all .22s ease}
+.threads-col.center-mode{width:560px;margin:0 auto} /* centered wider column when no chat */
+.threads-col.left-mode{width:360px;margin:0} /* left aligned when chat open */
+
+.search-wrap{display:flex;justify-content:center;padding:6px 0}
+.search-input{width:88%;max-width:420px;padding:12px 14px;border-radius:999px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:var(--text);outline:none;font-size:14px}
+
+.threads-list{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.thread-item{text-align:left;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:var(--panel);cursor:pointer;color:var(--text);display:flex;align-items:center;gap:12px}
+.thread-item .thread-title{font-weight:700}
+.thread-item .thread-sub{color:var(--muted);margin-top:6px;font-size:13px}
+.thread-item.active{outline:2px solid rgba(255,138,0,0.12)}
+.user-circle-small {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover; /* make sure the picture fits nicely */
+  flex-shrink: 0;
 }
 
-/* messages area */
-.messages-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.messages-header {
-  padding: 4px 6px;
-  color: var(--muted);
-  font-weight: 600;
-}
-.messages {
-  background: var(--panel);
-  border: 1px solid rgba(255,255,255,0.04);
-  border-radius: 12px;
-  padding: 18px;
-  height: 62vh;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+
+/* MESSAGES column */
+/* hidden by default, visible when a thread is active */
+.messages-col{flex:1;display:flex;flex-direction:column;gap:12px;transition:all .22s ease}
+.messages-col.hidden{display:none}
+.messages-col.visible{display:flex}
+
+.messages-header{padding:4px 6px;color:var(--muted);font-weight:600}
+.messages{background:var(--panel);border:1px solid rgba(255,255,255,0.04);border-radius:12px;padding:18px;height:62vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
 
 /* message bubbles */
-.msg {
-  max-width: 70%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(255,255,255,0.02);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.msg.me {
-  align-self: flex-end;
-  background: linear-gradient(90deg, var(--orange), #ff6a00);
-  color: #080808;
-}
-.msg-sender {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 600;
-}
-.msg-time {
-  font-size: 11px;
-  color: rgba(255,255,255,0.35);
-}
-.shared-post img {
-  max-width: 320px;
-  border-radius: 8px;
-  display: block;
-}
-.caption {
-  color: var(--muted);
-  font-size: 13px;
-}
+.msg{max-width:70%;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.02);display:flex;flex-direction:column;gap:8px}
+.msg.me{align-self:flex-end;background:linear-gradient(90deg,var(--orange),#ff6a00);color:#080808}
+.msg-sender{font-size:12px;color:var(--muted);font-weight:600}
+.msg-time{font-size:11px;color:rgba(255,255,255,0.35)}
 
-/* input area */
-.input-area {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: 6px;
-}
-.message-input {
-  flex: 1;
-  min-height: 46px;
-  padding: 10px;
-  border-radius: 10px;
-  background: transparent;
-  border: 1px solid rgba(255,255,255,0.06);
-  color: var(--text);
-  outline: none;
-  resize: none;
-}
-.attach-btn,
-.send-btn,
-.btn-new {
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.06);
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-}
-.send-btn {
-  background: linear-gradient(90deg, var(--orange), #ff6a00);
-  color: #080808;
-  border: none;
-}
+/* INPUT area - larger text input and send button inline */
+.input-area{display:flex;gap:8px;align-items:center;margin-top:12px}
+.input-area-inline{display:flex;gap:8px;align-items:center;width:100%}
+.message-input{flex:1;min-height:56px;padding:14px;border-radius:12px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text);outline:none;resize:none;font-size:16px}
+.send-btn{padding:12px 14px;border-radius:12px;border:none;background:linear-gradient(90deg,var(--orange),#ff6a00);color:#080808;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.send-btn:disabled{opacity:0.5;cursor:not-allowed}
 
-/* small helpers */
-.visually-hidden {
-  position: absolute;
-  left: -9999px;
-}
-.empty {
-  color: var(--muted);
-  text-align: center;
-  padding: 20px 0;
-}
+/* helpers */
+.visually-hidden{position:absolute;left:-9999px}
+.empty{color:var(--muted);text-align:center;padding:20px 0}
+.no-chats{color:var(--muted);padding:12px;text-align:center}
 
 /* responsive */
-@media (max-width: 800px) {
-  .threads-col { display: none; }
-  .messages { height: 62vh; }
-  .messages-col { width: 100%; }
+@media (max-width: 1000px){
+  .threads-col.center-mode{width:520px}
+  .threads-col.left-mode{width:300px}
+}
+@media (max-width: 760px){
+  .threads-col{display:none}
+  .messages{height:70vh}
 }
