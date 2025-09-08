@@ -1,101 +1,49 @@
-.app-header {
+.h-app-header {
   width: 100%;
-  background-color: #1a1a1a;
-  
-  position: relative;
-  padding-top: 0px;
-  margin-bottom: 30px;
+  background: rgba(26, 26, 26, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: fixed;
   top: 0;
-  z-index: 100;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
-
-/* Container for proper centering */
-.header-inner {
-  display: flex;
+.h-header-inner{
+  display:flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
-  padding: 12px 20px;
-  position: relative;
-  
+  padding: 16px;
 }
-
-.logo {
-  font-size: 25px;
+.h-logo{
+   font-size: 30px;
     font-weight: 600;
-    color: #d4633a;
-    letter-spacing: 2px;
-    margin-left: 15px;
-
-    
-  
-  
-  
+   color: #d4633a;
+   letter-spacing: 2px;
+   margin-left: 20px;
 }
-
-
-
-.nav-icons {
+.h-nav-icons{
   display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 32px;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  opacity: 1;
-  margin-top: 30px;
-  transition: all 0.3s ease;
-}
 
-
-
-.nav-icons svg {
   color: white;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  padding: 8px;
-  border-radius: 8px;
+  gap: 52px;
 }
 
-.nav-icons svg:hover {
+.h-message-icon{
+margin-right: 20px;
+color: white;
+}
+
+
+.h-nav-icons svg:hover {
   color: #d4633a;
-  
+  cursor: pointer;
   transform: scale(1.1);
 }
-
-
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .header-inner {
-    padding: 12px 16px;
-  }
-  
-  .logo {
-    font-size: 24px;
-  }
-  
-  .nav-icons {
-    gap: 24px;
-  }
-  
-  .nav-icons svg {
-    font-size: 20px;
-  }
-  
-  .header-spacer {
-    width: 80px;
-  }
-}
-
-@media (max-width: 480px) {
-  .nav-icons {
-    gap: 20px;
-  }
-  
-  .nav-icons svg {
-    font-size: 18px;
-    padding: 6px;
-  }
-}
+.h-message-icon svg:hover {
+  color: #d4633a;
+  cursor: pointer;
+  transform: scale(1.1);
+}             

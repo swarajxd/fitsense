@@ -1,15 +1,55 @@
 import React from "react";
-import "./Navbar.css"; // Create this file or move styles to global CSS
 import { Link } from "react-router-dom";
+import {
+  SignedIn,
+  SignedOut,
+  SignInButton,
+  UserButton,
+} from "@clerk/clerk-react";
+import "./Navbar.css";
 
-const Navbar = () => {
+export default function Navbar() {
   return (
-    <header className="navbar">
-      <h1>Fit-Sense</h1>
-      <input type="text" placeholder="Search outfits..." className="search-bar" />
-      <img src="/profile.jpg" alt="Profile" className="profile-pic" />
+    <header className="app-navbar">
+      {/* Left: logo/brand */}
+      <div className="nav-left">
+        <Link to="/" className="brand-link">
+          <span className="nav-brand">Fit-Sense</span>
+        </Link>
+      </div>
+
+      {/* Middle: search bar */}
+      <div className="nav-middle">
+        <input
+          type="text"
+          placeholder="Search outfits..."
+          className="search-bar"
+        />
+      </div>
+
+      {/* Right: sign in/out + profile */}
+      <div className="nav-right">
+        <SignedIn>
+          {/* Clerk handles avatar + logout inside this button */}
+          <UserButton
+            afterSignOutUrl="/"
+            appearance={{
+              elements: {
+                userButtonAvatarBox: {
+                  width: "48px",   // increase width
+                  height: "48px",  // increase height
+                },
+              },
+            }}
+          />
+        </SignedIn>
+
+        <SignedOut>
+          <SignInButton mode="modal">
+            <button className="nav-signin">Sign in</button>
+          </SignInButton>
+        </SignedOut>
+      </div>
     </header>
   );
-};
-
-export default Navbar;
+}

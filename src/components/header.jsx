@@ -10,19 +10,23 @@ import { LuMessageCircleMore } from "react-icons/lu";
 
 export default function Header() {
   return (
-    <header className="app-header">
-      <div className="header-inner">
-        <div className="logo">FITSENSE</div>
-        
-        <nav className="nav-icons">
-          <GoHome size={42} />
-          <IoSearchSharp size={42} />
-          <FiCamera size={42} />
-          <FaRegHeart size={42} />
-          
+
+    <header className="h-app-header">
+      <div className="h-header-inner">
+        <div className="h-logo">FITSENSE</div>
+
+        <nav className="h-nav-icons">
+          <GoHome size={32} />
+          <IoSearchSharp size={32} />
+          <FiCamera size={32} />
+          <FaRegHeart size={32} />
+
+
 
         </nav>
-        <LuMessageCircleMore size={22} style={{ marginRight: '40px', marginBottom: '15px', cursor: 'pointer' }} />
+        <div className="h-message-icon">
+          <LuMessageCircleMore size={32}  />
+        </div>
       </div>
     </header>
   );

@@ -1,147 +1,189 @@
-import React, { useState } from 'react';
-import './Profile.css';
+import React, { useState } from "react";
+import "./profile.css";
 import Header from '../components/header'; // Adjust path as needed
-import defaultAvatar from '../assets/profilepic.jpg'; // Adjust path as needed
-import post1 from '../assets/post1.jpg';
-import post2 from '../assets/post2.jpg';
-import post3 from '../assets/post3.jpg';
-import post4 from '../assets/post4.jpg';
-import post5 from '../assets/post5.jpg';
-import EditProfile from '../components/EditProfile';
-const postImages = [post1, post2, post3, post4, post5];
-const Profile = () => {
-  const [user, setUser] = useState({
-    name: "taha_313",
-    bio: "Follow for more outfit inspiration",
-    profilePic: "", // You can store image URL or base64 here
-    location: "📍 Mum",
-    link: "www.pinterest.com"
-  });
+import profilePic from "../assets/profilepic.jpg";
+import EditProfile from "../components/EditProfile.jsx"; // ✅ import modal
+import post1 from "../assets/post1.jpg";
+import post2 from "../assets/post2.jpg";
+import post3 from "../assets/post3.jpg";
+import post4 from "../assets/post4.jpg";
+import post5 from "../assets/post5.jpg";
 
-  const [activeTab, setActiveTab] = useState("posts");
+// sample posts array with additional metadata
+const postImages = [
+  { src: post1, caption: "Summer vibes and good times ☀️", creator: "Taha Sayed", creatorUsername: "taha_313" },
+  { src: post2, caption: "Casual Friday outfit inspiration", creator: "Taha Sayed", creatorUsername: "taha_313" },
+  { src: post3, caption: "Weekend adventures begin here", creator: "Taha Sayed", creatorUsername: "taha_313" },
+  { src: post4, caption: "Minimalist aesthetic goals", creator: "Taha Sayed", creatorUsername: "taha_313" },
+  { src: post5, caption: "New season, new style", creator: "Taha Sayed", creatorUsername: "taha_313" },
+];
+
+// demo images (replace with your own)
+const demoImgs = [
+  "https://images.unsplash.com/photo-1548685913-fe6678babe83?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1520974433023-c731af78f21f?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1521337706268-0f13c744c3c1?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1000&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1000&auto=format&fit=crop",
+];
+
+export default function profile2() {
+  // ✅ user state for edit profile
+  const [user, setUser] = useState({
+    name: "Taha Sayed",
+    username: "taha_313",
+    bio: "Follow for more outfit inspiration",
+    profilePic: profilePic,
+  });
   const [isEditing, setIsEditing] = useState(false);
+
+  // create 18 demo items
+  const galleryItems = Array.from({ length: 18 }).map((_, i) => ({
+    id: i + 1,
+    img: demoImgs[i % demoImgs.length],
+  }));
 
   const handleSave = (updatedUser) => {
     setUser(updatedUser);
     setIsEditing(false);
   };
+
+  const handleFollow = (username) => {
+    console.log(`Following ${username}`);
+  };
+
+  const handleShare = (postId) => {
+    console.log(`Sharing post ${postId}`);
+  };
+
+  const handleEdit = (postId) => {
+    console.log(`Editing post ${postId}`);
+  };
+
   return (
     <>
       <Header />
-      <div className="bodyofprofile">
-      <div className="profile-container">
-        <section className="profile-info">
-          <div className="profile-left">
-            <div className="profile-pic">
-                <img src={user.profilePic || defaultAvatar} alt="Profile" />
-            </div>
-            
-          </div>
-          
-          <div className="profile-right">
-           <h2 className="username">{user.name}</h2>
-            <div className="stats">
-              <div className="stat-item">
-                <span className="stat-number">234</span>
-                <span className="stat-label">posts</span>
+
+      <div className="fs-wrap">
+        <div className="fs-container">
+          {/* LEFT: Sticky Profile Card */}
+          <aside className="fs-profile-column">
+            <div className="fs-profile-card">
+              <div
+                className="fs-hero"
+                style={{ backgroundImage: `url(${user.profilePic})` }}
+                
+              >
+                <div className="fs-overlay">
+                  <h1 className="fs-name">{user.name}</h1>
+                  <div className="fs-handle">@{user.username}</div>
+                  <div className="fs-bio">{user.bio}</div>
+
+                  <div className="fs-stats">
+                    <div className="fs-stat"><b>234</b><span>Posts</span></div>
+                    <div className="fs-stat"><b>64</b><span>Followers</span></div>
+                    <div className="fs-stat"><b>92</b><span>Following</span></div>
+                  </div>
+
+                  <div className="fs-actions">
+                    <button className="fs-btn fs-btn-follow">Share</button>
+                    <button
+                      className="fs-btn fs-btn-ghost"
+                      onClick={() => setIsEditing(true)} // ✅ open modal
+                    >
+                      Edit Profile
+                    </button>
+                  </div>
+                </div>
+
               </div>
-              <div className="stat-item">
-                <span className="stat-number">64</span>
-                <span className="stat-label">followers</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-number">92</span>
-                <span className="stat-label">following</span>
-              </div>
             </div>
-            <div className="profile-buttons-row">
-              <button className="edit-profile-btn" onClick={() => setIsEditing(true)}>Edit Profile</button>
-              <button className="edit-profile-btn">Share profile</button>
-              <button className="more-options-btn">⋯</button>
+          </aside>
+
+          {/* RIGHT: Scrollable Posts Column (only this column scrolls) */}
+          <main className="fs-main" role="main">
+            <div className="fs-topbar">
+              <div className="fs-brand"><span className="fs-dot" /> Posts</div>
             </div>
-            
-          </div>
-        </section>
 
-        <section className="bio-section-separate">
-          <h3 className="bio-title"></h3>
-          <p className="bio">
-             
-          </p>
-          <p className="bio">{user.bio}</p>
-
-          <p className="bio location">{user.location || "📍 Mum"}</p>
-          <a href="#" className="website-link">{user.link || "linktr.ee/fitsense"}</a>
-
-        </section>
-
-
-        <section className="tabs-section">
-          <div className="tabs">
-            <button 
-              className={`tab ${activeTab === 'posts' ? 'active' : ''}`}
-              onClick={() => setActiveTab('posts')}
-            >
-              <span className="tab-icon">⚏</span>
-              <span>POSTS</span>
-            </button>
-            <button 
-              className={`tab ${activeTab === 'saved' ? 'active' : ''}`}
-              onClick={() => setActiveTab('saved')}
-            >
-              <span className="tab-icon">🔖</span>
-              <span>SAVED POSTS</span>
-            </button>
-          </div>
-        </section>
-
-        <section className="gallery">
-          {activeTab === 'posts' && (
-            <>
-              {[...Array(15)].map((_, index) => {
-                // Create varied heights for Pinterest-style layout
-                const heights = ['200px', '250px', '180px', '300px', '220px', '280px', '160px', '240px', '320px'];
-                const randomHeight = heights[index % heights.length];
-                const image = postImages[index % postImages.length]; // pick image in loop
+            {/* scrollable gallery area */}
+            <div className="fs-gallery-wrap">
+            <section className="fs-gallery" aria-label="Posts gallery">
+              {Array.from({ length: 20 }).map((_, index) => {
+                const postData = postImages[index % postImages.length]; // repeat images
                 return (
-                  <div 
-                    key={index} 
-                    className="gallery-item pinterest-item"
-                    style={{ height: randomHeight }}
-                  >
-                    <img src={image} alt={`Post ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <div className="pinterest-overlay">
-                      <button className="save-btn">Save</button>
-                      <button className="more-btn">⋯</button>
+                  <div key={index} className="fs-gallery-item">
+                    <img
+                      src={postData.src}
+                      alt={`Post ${index + 1}`}
+                      loading="lazy"
+                    />
+                    
+                    {/* Post Hover Overlay */}
+                    <div className="fs-post-overlay">
+                      <div className="fs-post-overlay-content">
+                        <div className="fs-post-header">
+                          <div className="fs-post-creator">
+                            <div className="fs-post-creator-avatar">
+                              <img src={user.profilePic} alt={postData.creator} />
+                            </div>
+                            <div className="fs-post-creator-info">
+                              <div className="fs-post-creator-name">{postData.creator}</div>
+                              <div className="fs-post-creator-username">@{postData.creatorUsername}</div>
+                            </div>
+                            <div className="fs-post-verified">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="fs-post-caption">
+                          {postData.caption}
+                        </div>
+                        
+                        <div className="fs-post-actions">
+                          <button 
+                            className="fs-post-btn fs-post-btn-follow"
+                            onClick={() => handleFollow(postData.creatorUsername)}
+                          >
+                            Follow +
+                          </button>
+                          <button 
+                            className="fs-post-btn fs-post-btn-ghost"
+                            onClick={() => handleShare(index + 1)}
+                          >
+                            Share
+                          </button>
+                          <button 
+                            className="fs-post-btn fs-post-btn-ghost"
+                            onClick={() => handleEdit(index + 1)}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
               })}
-            </>
-          )}
-          {activeTab === 'saved' && (
-            <div className="saved-empty">
-              <p>No saved posts yet</p>
+            </section>
             </div>
-          )}
-        </section>
-        {isEditing && (
-        <EditProfile
-      currentData={user} // ✅ pass user data
-      onSave={(updatedData) => {
-      setUser(updatedData);
-      setIsEditing(false);
-      }}
-    />
-)}
+          </main>
+        </div>
+      </div>
 
-        <footer className="footer-circle">
-          <div className="circle-btn"></div>
-        </footer>
-      </div>
-      </div>
+
+      {/* ✅ EditProfile modal */}
+      {isEditing && (
+        <EditProfile
+          currentData={user}
+          onCancel={() => setIsEditing(false)}
+          onSave={handleSave}
+        />
+      )}
+
     </>
   );
-};
-
-export default Profile;
+}
