@@ -1,112 +1,104 @@
-import React, { useState } from "react";
-import "./EditProfile.css";
+import React, { useState, useEffect } from "react";
 
-export default function EditProfile({ onSave, currentData = {} }) {
-  const [name, setName] = useState(currentData.name || "");
-  const [bio, setBio] = useState(currentData.bio || "");
-  const [profilePic, setProfilePic] = useState(currentData.profilePic || "");
-  const [location, setLocation] = useState(currentData.location || "");
-  const [link, setLink] = useState(currentData.link || "");
+/**
+ * Props:
+ * - currentData: { name, bio, profilePic }
+ * - onSave(updatedData)
+ * - onCancel()
+ */
+export default function EditProfile({ currentData, onSave, onCancel }) {
+  const [form, setForm] = useState({
+    name: "",
+    bio: "",
+    profilePic: "",
+  });
+  const [preview, setPreview] = useState("");
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePic(reader.result);
-      };
-      reader.readAsDataURL(file);
+  useEffect(() => {
+    if (currentData) {
+      setForm({
+        name: currentData.name || "",
+        bio: currentData.bio || "",
+        profilePic: currentData.profilePic || "",
+      });
+      setPreview(currentData.profilePic || "");
     }
+  }, [currentData]);
+
+  // handle file input -> dataURL
+  const handleFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setPreview(ev.target.result);
+      setForm((s) => ({ ...s, profilePic: ev.target.result }));
+    };
+    reader.readAsDataURL(f);
   };
 
-  const handleSave = () => {
-    onSave({ name, bio, profilePic, location,link });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((s) => ({ ...s, [name]: value }));
   };
-  const close = () => {
-    onSave({ name: "", bio: "", profilePic: "", location: "", link: "" }); // Close the modal without saving
+
+  const submit = (e) => {
+    e.preventDefault();
+    onSave(form);
   };
 
   return (
-    <div className="edit-profile-modal">
-      <div className="edit-profile-content">
-        {/* Close Button */}
-        <button onClick={() => close()} className="close-btn">
-          ×
-        </button>
+    <div className="ep-backdrop" role="dialog" aria-modal="true">
+      <div className="ep-modal">
+        <h3>Edit profile</h3>
 
-        <h2 className="edit-profile-title">Edit Profile</h2>
-
-        {/* Profile Picture Section */}
-        <div className="profile-pic-section">
-          <div className="profile-pic-container">
-            {profilePic ? (
-              <img
-                src={profilePic}
-                alt="Profile Preview"
-                className="edit-profile-preview"
-              />
-            ) : (
-              <div className="no-image-placeholder">
-                No Image
-              </div>
-            )}
-            
-            <label className="camera-btn">
-              📷
+        <form className="ep-form" onSubmit={submit}>
+          <div className="ep-grid">
+            <label className="ep-field">
+              <span>Name</span>
               <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="file-input"
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                className="ep-input"
               />
             </label>
+
+            <label className="ep-field">
+              <span>Bio</span>
+              <textarea
+                name="bio"
+                value={form.bio}
+                onChange={handleChange}
+                className="ep-input"
+                rows={3}
+              />
+            </label>
+
+            <label className="ep-field">
+              <span>Profile picture</span>
+              <input type="file" accept="image/*" onChange={handleFile} />
+              {preview ? (
+                <img src={preview} alt="preview" className="ep-img-preview" />
+              ) : (
+                <div className="ep-img-placeholder">No image</div>
+              )}
+            </label>
           </div>
-          <p className="upload-hint">Click camera to change</p>
-        </div>
 
-        <label className="form-label">Name</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="form-input"
-          placeholder="Enter your name"
-        />
-
-        <label className="form-label">Bio</label>
-        <textarea 
-          value={bio} 
-          onChange={(e) => setBio(e.target.value)}
-          className="form-textarea"
-          placeholder="Tell us about yourself..."
-          maxLength={20}
-        />
-        {/* Bio Location */}
-        <label className="form-label">Location</label>
-        <input
-          type="text"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          className="form-input"
-          placeholder="Enter your location"
-        />
-      <label className="form-label">Link</label>
-        <input
-          type="text"
-          value={link}
-          onChange={(e) => setLink(e.target.value)}
-          className="form-input"
-          placeholder="Enter your website link"
-        />
-        <div className="character-counter">
-          {bio.length}/20 characters
-        </div>
-
-        <div className="edit-profile-actions">
-          <button onClick={handleSave} className="save-btn">
-            Save Changes
-          </button>
-        </div>
+          <div className="ep-actions">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="ep-btn ep-btn-ghost"
+            >
+              Cancel
+            </button>
+            <button type="submit" className="ep-btn ep-btn-primary">
+              Save
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -1,0 +1,180 @@
+/* Inbox.css - matches your app theme */
+:root {
+  --bg: #050505;
+  --panel: rgba(255,255,255,0.03);
+  --muted: rgba(255,255,255,0.55);
+  --text: #fff;
+  --orange: #ff8a00;
+  --header-height: 72px; /* sync with your header if needed */
+}
+
+.inbox-page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
+}
+
+.inbox-main {
+  max-width: 1200px;
+  margin: calc(var(--header-height) + 28px) auto;
+  padding: 18px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  box-sizing: border-box;
+}
+
+/* left threads column */
+.threads-col {
+  width: 280px;
+}
+.threads-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.btn-new {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.threads-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.thread-item {
+  background: var(--panel);
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 10px;
+  border-radius: 8px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+.thread-item.active {
+  outline: 2px solid rgba(255,138,0,0.12);
+}
+.thread-title {
+  font-weight: 700;
+}
+.thread-sub {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* messages area */
+.messages-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.messages-header {
+  padding: 4px 6px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.messages {
+  background: var(--panel);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 12px;
+  padding: 18px;
+  height: 62vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* message bubbles */
+.msg {
+  max-width: 70%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.msg.me {
+  align-self: flex-end;
+  background: linear-gradient(90deg, var(--orange), #ff6a00);
+  color: #080808;
+}
+.msg-sender {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.msg-time {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+}
+.shared-post img {
+  max-width: 320px;
+  border-radius: 8px;
+  display: block;
+}
+.caption {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* input area */
+.input-area {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+.message-input {
+  flex: 1;
+  min-height: 46px;
+  padding: 10px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text);
+  outline: none;
+  resize: none;
+}
+.attach-btn,
+.send-btn,
+.btn-new {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.send-btn {
+  background: linear-gradient(90deg, var(--orange), #ff6a00);
+  color: #080808;
+  border: none;
+}
+
+/* small helpers */
+.visually-hidden {
+  position: absolute;
+  left: -9999px;
+}
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* responsive */
+@media (max-width: 800px) {
+  .threads-col { display: none; }
+  .messages { height: 62vh; }
+  .messages-col { width: 100%; }
+}

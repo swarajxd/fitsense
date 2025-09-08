@@ -1,0 +1,51 @@
+:root{
+  --bg: #050505;
+  --panel: rgba(255,255,255,0.03);
+  --muted: rgba(255,255,255,0.55);
+  --text: #fff;
+  --orange: #ff8a00;
+  --glass: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  --header-height: 72px; /* keep in sync with your header */
+}
+
+/* Page layout */
+.aichat-page{min-height:100vh;background:var(--bg);color:var(--text);font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+
+.aichat-main{max-width:1200px;margin:calc(var(--header-height) + 36px) auto;padding:18px;display:flex;justify-content:center}
+
+.chat-wrapper{width:100%;max-width:980px}
+.chat-panel{background:transparent;border-radius:12px;padding:0}
+
+.chat-header{font-weight:700;color:var(--muted);padding:10px 14px 18px 14px}
+
+.messages{height:64vh;background:var(--panel);border:1px solid rgba(255,255,255,0.04);border-radius:12px;padding:18px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+
+.message{max-width:72%;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.02);box-shadow:0 2px 8px rgba(0,0,0,0.4)}
+.message.bot{align-self:flex-start}
+.message.me{align-self:flex-end;background:linear-gradient(90deg,var(--orange),#ff6a00);color:#080808;border:none}
+.message-text{white-space:pre-wrap}
+.message-image img{max-width:240px;border-radius:8px;display:block}
+
+.input-area{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+
+.attach-preview{display:flex;align-items:center;gap:8px;background:var(--panel);padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.04)}
+.attach-preview img{height:56px;width:56px;object-fit:cover;border-radius:8px}
+.remove-attach{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:6px;border-radius:8px;color:var(--text);margin-left:auto}
+
+.input-row{display:flex;gap:8px;align-items:flex-end}
+.chat-input{flex:1;min-height:44px;max-height:160px;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text);outline:none;resize:none}
+.controls{display:flex;gap:8px;align-items:center}
+.icon-btn{padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text);cursor:pointer}
+.send-btn{padding:10px 12px;border-radius:10px;background:linear-gradient(90deg,var(--orange),#ff6a00);border:none;color:#080808;cursor:pointer}
+
+.visually-hidden{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+
+/* Focus & effects */
+.chat-input:focus,.icon-btn:focus,.send-btn:focus{box-shadow:0 0 18px rgba(255,138,0,0.06);border-color:rgba(255,138,0,0.6)}
+
+/* Small responsiveness */
+@media(max-width:700px){
+  .messages{height:56vh;padding:12px}
+  .message{max-width:86%}
+  .attach-preview img{height:48px;width:48px}
+}

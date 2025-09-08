@@ -19,7 +19,7 @@ export default function LoginPage() {
 
   // If the user is already signed in (session exists) navigate to discover
   useEffect(() => {
-    if (isSignedIn) navigate("/discover");
+    if (isSignedIn) navigate("/home");
   }, [isSignedIn, navigate]);
 
   function handleChange(e) {
@@ -42,7 +42,7 @@ export default function LoginPage() {
 
       if (attempt.status === "complete") {
         await setActive({ session: attempt.createdSessionId });
-        navigate("/discover");
+        navigate("/home");
       } else {
         // Example: "needs_second_factor" or "needs_verification"
         setError("Sign-in requires additional verification. Please try again or contact support.");
@@ -65,8 +65,8 @@ export default function LoginPage() {
       
       await signIn.authenticateWithRedirect({
         strategy,
-        redirectUrl: "/discover",
-        redirectUrlComplete: "/discover",
+        redirectUrl: "/home",
+        redirectUrlComplete: "/home",
       });
     } catch (err) {
       console.error(`${strategy} sign in error:`, err);
@@ -89,7 +89,7 @@ export default function LoginPage() {
 
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
-        navigate("/discover");
+        navigate("/home ");
       }
     } catch (err) {
       console.error(`${strategy} popup sign in error:`, err);
