@@ -1,0 +1,49 @@
+.h-app-header {
+  width: 100%;
+  background: rgba(26, 26, 26, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.h-header-inner{
+  display:flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+}
+.h-logo{
+   font-size: 30px;
+    font-weight: 600;
+   color: #d4633a;
+   letter-spacing: 2px;
+   margin-left: 20px;
+}
+.h-nav-icons{
+  display: flex;
+
+  color: white;
+  gap: 52px;
+}
+
+.h-message-icon{
+margin-right: 20px;
+color: white;
+}
+
+
+.h-nav-icons svg:hover {
+  color: #d4633a;
+  cursor: pointer;
+  transform: scale(1.1);
+}
+.h-message-icon svg:hover {
+  color: #d4633a;
+  cursor: pointer;
+  transform: scale(1.1);
+}             
