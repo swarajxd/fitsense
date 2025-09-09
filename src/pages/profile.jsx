@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import "./profile.css";
 import Header from '../components/header'; // Adjust path as needed
 import profilePic from "../assets/profilepic.jpg";
@@ -8,15 +8,18 @@ import post2 from "../assets/post2.jpg";
 import post3 from "../assets/post3.jpg";
 import post4 from "../assets/post4.jpg";
 import post5 from "../assets/post5.jpg";
+import SavedPosts from "../components/SavedPosts"; // new import
 
 // sample posts array with additional metadata
+// replace your postImages array with this (still uses the same imports)
 const postImages = [
-  { src: post1, caption: "Summer vibes and good times ☀️", creator: "Taha Sayed", creatorUsername: "taha_313" },
-  { src: post2, caption: "Casual Friday outfit inspiration", creator: "Taha Sayed", creatorUsername: "taha_313" },
-  { src: post3, caption: "Weekend adventures begin here", creator: "Taha Sayed", creatorUsername: "taha_313" },
-  { src: post4, caption: "Minimalist aesthetic goals", creator: "Taha Sayed", creatorUsername: "taha_313" },
-  { src: post5, caption: "New season, new style", creator: "Taha Sayed", creatorUsername: "taha_313" },
+  { src: post1, caption: "Look 1", creator: "taha_313", creatorUsername: "taha_313" },
+  { src: post2, caption: "Look 2", creator: "alexd", creatorUsername: "alexd" },
+  { src: post3, caption: "Look 3", creator: "harryb", creatorUsername: "harryb" },
+  { src: post4, caption: "Look 4", creator: "jane_doe", creatorUsername: "janed" },
+  { src: post5, caption: "Look 5", creator: "mario", creatorUsername: "mario" },
 ];
+
 
 // demo images (replace with your own)
 const demoImgs = [
@@ -36,6 +39,7 @@ export default function profile2() {
     profilePic: profilePic,
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [mode, setMode] = useState("posts"); // "posts" or "saved"
 
   // create 18 demo items
   const galleryItems = Array.from({ length: 18 }).map((_, i) => ({
@@ -60,6 +64,58 @@ export default function profile2() {
     console.log(`Editing post ${postId}`);
   };
 
+  const masonryRef = useRef(null);
+  const postsCount = 20; // number of tiles to show (repeat the 5 sample images)
+const visiblePosts = Array.from({ length: postsCount }).map((_, i) => {
+  return postImages[i % postImages.length];
+});
+
+useEffect(() => {
+  const container = masonryRef.current;
+  if (!container) return;
+
+  const resizeItem = (item) => {
+    const img = item.querySelector("img");
+    if (!img) return;
+    // grid-auto-rows value
+    const style = window.getComputedStyle(container);
+    const rowHeightPx = parseInt(style.getPropertyValue("grid-auto-rows")) || 8;
+    // gap could be '16px'
+    const gapPx = parseInt(style.getPropertyValue("gap")) || parseInt(style.getPropertyValue("grid-row-gap")) || 16;
+    const imgHeight = img.getBoundingClientRect().height;
+    const rowSpan = Math.max(1, Math.ceil((imgHeight + gapPx) / (rowHeightPx + gapPx)));
+    item.style.gridRowEnd = `span ${rowSpan}`;
+  };
+
+  const resizeAll = () => {
+    const items = Array.from(container.querySelectorAll(".masonry-item"));
+    items.forEach((it) => resizeItem(it));
+  };
+
+  // handle images loaded
+  const imgs = Array.from(container.querySelectorAll("img"));
+  imgs.forEach((img) => {
+    if (img.complete) {
+      const item = img.closest(".masonry-item");
+      if (item) resizeItem(item);
+    } else {
+      img.addEventListener("load", () => {
+        const item = img.closest(".masonry-item");
+        if (item) resizeItem(item);
+      });
+    }
+  });
+
+  // on window resize, recalc
+  window.addEventListener("resize", resizeAll);
+  // small timeout to allow DOM to paint then calculate
+  const t = setTimeout(resizeAll, 60);
+
+  return () => {
+    window.removeEventListener("resize", resizeAll);
+    clearTimeout(t);
+  };
+}, [visiblePosts]); 
   return (
     <>
       <Header />
@@ -103,73 +159,96 @@ export default function profile2() {
           {/* RIGHT: Scrollable Posts Column (only this column scrolls) */}
           <main className="fs-main" role="main">
             <div className="fs-topbar">
-              <div className="fs-brand"><span className="fs-dot" /> Posts</div>
-            </div>
+            {/* your existing topbar content (brand/search etc.) */}
 
-            {/* scrollable gallery area */}
+            {/* Tabs: Profile | Saved */}
+            <div className="profile-top-row">
+              <div className="profile-toggle">
+                <button
+                  className={`profile-mode-btn ${mode === "posts" ? "active" : ""}`}
+                  onClick={() => setMode("posts")}
+                >
+                  Posts
+                </button>
+
+                <button
+                  className={`profile-mode-btn ${mode === "saved" ? "active" : ""}`}
+                  onClick={() => setMode("saved")}
+                >
+                  Saved
+                </button>
+              </div>
+            </div>
+          </div>
+          {mode === "posts" ? (
+            // scrollable gallery area
             <div className="fs-gallery-wrap">
-            <section className="fs-gallery" aria-label="Posts gallery">
-              {Array.from({ length: 20 }).map((_, index) => {
-                const postData = postImages[index % postImages.length]; // repeat images
-                return (
-                  <div key={index} className="fs-gallery-item">
-                    <img
-                      src={postData.src}
-                      alt={`Post ${index + 1}`}
-                      loading="lazy"
-                    />
-                    
-                    {/* Post Hover Overlay */}
-                    <div className="fs-post-overlay">
-                      <div className="fs-post-overlay-content">
-                        <div className="fs-post-header">
-                          <div className="fs-post-creator">
-                            <div className="fs-post-creator-avatar">
-                              <img src={user.profilePic} alt={postData.creator} />
-                            </div>
-                            <div className="fs-post-creator-info">
-                              <div className="fs-post-creator-name">{postData.creator}</div>
-                              <div className="fs-post-creator-username">@{postData.creatorUsername}</div>
-                            </div>
-                            <div className="fs-post-verified">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
-                              </svg>
+              <section className="fs-gallery" aria-label="Posts gallery" ref={masonryRef}>
+                {Array.from({ length: 20 }).map((_, index) => {
+                  const postData = postImages[index % postImages.length]; // repeat images
+                  return (
+                    <div key={index} className="fs-gallery-item masonry-item">
+                      <img
+                        src={postData.src}
+                        alt={`Post ${index + 1}`}
+                        loading="lazy"
+                      />
+                      {/* Post Hover Overlay */}
+                      <div className="fs-post-overlay">
+                        <div className="fs-post-overlay-content">
+                          <div className="fs-post-header">
+                            <div className="fs-post-creator">
+                              <div className="fs-post-creator-avatar">
+                                <img src={user.profilePic} alt={postData.creator} />
+                              </div>
+                              <div className="fs-post-creator-info">
+                                <div className="fs-post-creator-name">{postData.creator}</div>
+                                <div className="fs-post-creator-username">@{postData.creatorUsername}</div>
+                              </div>
+                              <div className="fs-post-verified">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
+                                </svg>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        
-                        <div className="fs-post-caption">
-                          {postData.caption}
-                        </div>
-                        
-                        <div className="fs-post-actions">
-                          <button 
-                            className="fs-post-btn fs-post-btn-follow"
-                            onClick={() => handleFollow(postData.creatorUsername)}
-                          >
-                            Follow +
-                          </button>
-                          <button 
-                            className="fs-post-btn fs-post-btn-ghost"
-                            onClick={() => handleShare(index + 1)}
-                          >
-                            Share
-                          </button>
-                          <button 
-                            className="fs-post-btn fs-post-btn-ghost"
-                            onClick={() => handleEdit(index + 1)}
-                          >
-                            Edit
-                          </button>
+                          <div className="fs-post-caption">
+                            {postData.caption}
+                          </div>
+                          <div className="fs-post-actions">
+                            <button 
+                              className="fs-post-btn fs-post-btn-follow"
+                              onClick={() => handleFollow(postData.creatorUsername)}
+                            >
+                              Follow +
+                            </button>
+                            <button 
+                              className="fs-post-btn fs-post-btn-ghost"
+                              onClick={() => handleShare(index + 1)}
+                            >
+                              Share
+                            </button>
+                            <button 
+                              className="fs-post-btn fs-post-btn-ghost"
+                              onClick={() => handleEdit(index + 1)}
+                            >
+                              Edit
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </section>
+                  );
+                })}
+              </section>
             </div>
+          ) : (
+             <SavedPosts
+              postImages={postImages.map(p => (typeof p === "string" ? p : p.src || p))}
+              masonryRef={masonryRef}
+            />
+
+          )}
           </main>
         </div>
       </div>
