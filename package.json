@@ -10,11 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-
-    "lucide-react": "^0.542.0",
-
     "@clerk/clerk-react": "^5.46.0",
-
+    "firebase": "^12.2.1",
+    "lucide-react": "^0.542.0",
     "react": "^19.1.0",
     "react-compare-image": "^3.5.9",
     "react-dom": "^19.1.0",

@@ -4,7 +4,7 @@ import "./Login.css";
 import googleLogo from "../assets/google.png";
 import facebookLogo from "../assets/facebook.png";
 import modelImage from "../assets/model1.png";
-import { useSignIn, SignInButton, useUser } from "@clerk/clerk-react";
+import { useSignIn, useUser } from "@clerk/clerk-react";
 import { useNavigate, Link } from "react-router-dom";
 
 export default function LoginPage() {
@@ -15,10 +15,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [socialLoading, setSocialLoading] = useState(null); // Track which social button is loading
 
   // If the user is already signed in (session exists) navigate to discover
   useEffect(() => {
-    if (isSignedIn) navigate("/discover");
+    if (isSignedIn) navigate("/home");
   }, [isSignedIn, navigate]);
 
   function handleChange(e) {
@@ -41,16 +42,60 @@ export default function LoginPage() {
 
       if (attempt.status === "complete") {
         await setActive({ session: attempt.createdSessionId });
-        navigate("/discover");
+        navigate("/home");
       } else {
         // Example: "needs_second_factor" or "needs_verification"
-        setError("Sign-in requires additional verification. Use the modal sign-in if needed.");
+        setError("Sign-in requires additional verification. Please try again or contact support.");
       }
     } catch (err) {
       console.error("Sign in error:", err);
       setError(err?.errors?.[0]?.message || err?.message || "Sign in failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Handle OAuth sign-in with redirect
+  async function handleOAuthSignIn(strategy) {
+    if (!isLoaded) return;
+    
+    try {
+      setSocialLoading(strategy);
+      setError("");
+      
+      await signIn.authenticateWithRedirect({
+        strategy,
+        redirectUrl: "/home",
+        redirectUrlComplete: "/home",
+      });
+    } catch (err) {
+      console.error(`${strategy} sign in error:`, err);
+      setError(err?.errors?.[0]?.message || err?.message || `${strategy} sign in failed`);
+      setSocialLoading(null);
+    }
+  }
+
+  // Alternative: Handle OAuth sign-in with popup
+  async function handleOAuthSignInPopup(strategy) {
+    if (!isLoaded) return;
+    
+    try {
+      setSocialLoading(strategy);
+      setError("");
+      
+      const result = await signIn.authenticateWithPopup({
+        strategy,
+      });
+
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        navigate("/home ");
+      }
+    } catch (err) {
+      console.error(`${strategy} popup sign in error:`, err);
+      setError(err?.errors?.[0]?.message || err?.message || `${strategy} sign in failed`);
+    } finally {
+      setSocialLoading(null);
     }
   }
 
@@ -105,18 +150,45 @@ export default function LoginPage() {
         </div>
 
         <div className="social-login">
-          {/* opens Clerk modal where social providers are handled */}
-          <SignInButton mode="modal">
-            <button className="social-btn">
-              <img src={googleLogo} alt="Google" /> Continue with Google
-            </button>
-          </SignInButton>
+          {/* Direct Google OAuth - uses redirect by default */}
+          <button 
+            className="social-btn" 
+            onClick={() => handleOAuthSignIn("oauth_google")}
+            disabled={socialLoading !== null}
+          >
+            <img src={googleLogo} alt="Google" /> 
+            {socialLoading === "oauth_google" ? "Connecting..." : "Continue with Google"}
+          </button>
 
-          <SignInButton mode="modal">
-            <button className="social-btn">
-              <img src={facebookLogo} alt="Facebook" /> Continue with Facebook
-            </button>
-          </SignInButton>
+          {/* Direct Facebook OAuth - uses redirect by default */}
+          <button 
+            className="social-btn" 
+            onClick={() => handleOAuthSignIn("oauth_facebook")}
+            disabled={socialLoading !== null}
+          >
+            <img src={facebookLogo} alt="Facebook" /> 
+            {socialLoading === "oauth_facebook" ? "Connecting..." : "Continue with Facebook"}
+          </button>
+
+          {/* Alternative: Uncomment these to use popup instead of redirect
+          <button 
+            className="social-btn" 
+            onClick={() => handleOAuthSignInPopup("oauth_google")}
+            disabled={socialLoading !== null}
+          >
+            <img src={googleLogo} alt="Google" /> 
+            {socialLoading === "oauth_google" ? "Connecting..." : "Continue with Google (Popup)"}
+          </button>
+
+          <button 
+            className="social-btn" 
+            onClick={() => handleOAuthSignInPopup("oauth_facebook")}
+            disabled={socialLoading !== null}
+          >
+            <img src={facebookLogo} alt="Facebook" /> 
+            {socialLoading === "oauth_facebook" ? "Connecting..." : "Continue with Facebook (Popup)"}
+          </button>
+          */}
         </div>
 
         <p className="have-account">Need an account? <Link to="/signup">Sign up</Link></p>

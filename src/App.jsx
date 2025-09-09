@@ -7,6 +7,10 @@ import MVP from "./pages/MVP";
 import LoginPage from "./pages/Login.jsx";
 import Profile from "./pages/profile.jsx";
 import SignupPage from "./pages/Signup.jsx";
+import Home from "./pages/Home.jsx";
+import Create from "./pages/Create.jsx";
+import AiChat from "./pages/AiChat.jsx";
+import Inbox from "./pages/Inbox.jsx";
 
 // Clerk imports
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
@@ -22,7 +26,12 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/home" element={<Home />} />
         <Route path="/" element={<MVP />} />
+        <Route path="/create" element={<Create />} />
+        <Route path="/AiChat" element={<AiChat />} />
+        <Route path="/inbox" element={<Inbox />} />
+        
       </Routes>
     </Router>
   );
