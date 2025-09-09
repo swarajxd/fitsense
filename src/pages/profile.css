@@ -54,7 +54,7 @@
 /* profile card now fills the whole left column */
 .fs-profile-card{
   background:var(--fs-panel);
-  border-radius:var(--fs-radius);
+  
   overflow: hidden;
   box-shadow:0 28px 70px rgba(0,0,0,.6);
   position: sticky;   /* still sticky relative to viewport */
