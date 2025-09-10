@@ -93,18 +93,6 @@ label {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-input:focus {
-  outline: none;
-  border-color: #ff6600;
-  background-color: #323232;
-  box-shadow: 0 0 0 3px rgba(255, 102, 0, 0.1);
-  transform: translateY(-1px);
-}
-
-input::placeholder {
-  color: #888;
-  font-weight: 400;
-}
 
 .password-wrapper {
   position: relative;
@@ -286,8 +274,7 @@ input::placeholder {
 
 /* Focus and accessibility improvements */
 .login-btn:focus,
-.social-btn:focus,
-input:focus {
+.social-btn:focus{
   outline: 2px solid #ff6600;
   outline-offset: 2px;
 }
