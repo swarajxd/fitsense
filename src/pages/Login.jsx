@@ -106,8 +106,9 @@ export default function LoginPage() {
       <div className="login-form-section">
         <h2 className="login-h2">Log In</h2>
         <p className="welcome-text">Welcome back! Please enter your details</p>
-
+        
         <label>Email or Username</label>
+        <div className="input-row">
         <input
           className="login-input"
           type="text"
@@ -116,6 +117,7 @@ export default function LoginPage() {
           value={form.identifier}
           onChange={handleChange}
         />
+        </div>
 
         <label>Password</label>
         <div className="password-wrapper">
@@ -137,7 +139,7 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <p className="forgot-password"><Link to="/forgot-password">forgot password?</Link></p>
+        <p className="forgot-password"><Link className="forgot-password" to="/forgot-password">forgot password?</Link></p>
 
         <button className="login-btn" onClick={handleSubmit} disabled={loading}>
           {loading ? "Signing in..." : "Log in"}
@@ -161,14 +163,7 @@ export default function LoginPage() {
           </button>
 
           {/* Direct Facebook OAuth - uses redirect by default */}
-          <button 
-            className="social-btn" 
-            onClick={() => handleOAuthSignIn("oauth_facebook")}
-            disabled={socialLoading !== null}
-          >
-            <img src={facebookLogo} alt="Facebook" /> 
-            {socialLoading === "oauth_facebook" ? "Connecting..." : "Continue with Facebook"}
-          </button>
+         
 
           {/* Alternative: Uncomment these to use popup instead of redirect
           <button 
@@ -191,7 +186,7 @@ export default function LoginPage() {
           */}
         </div>
 
-        <p className="have-account">Need an account? <Link to="/signup">Sign up</Link></p>
+        <p className="have-account">Need an account? <Link className="login-link" to="/signup">Sign up</Link></p>
       </div>
 
       <div className="login-image-section">

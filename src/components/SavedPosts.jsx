@@ -69,4 +69,6 @@ export default function SavedPosts({ postImages = [], masonryRef = null }) {
       </section>
     </div>
   );
+
 }
+

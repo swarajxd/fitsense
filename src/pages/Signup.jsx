@@ -354,14 +354,7 @@ export default function SignupPage() {
           </button>
 
           {/* Direct Facebook OAuth - uses redirect by default */}
-          <button 
-            className="social-btn" 
-            onClick={() => handleOAuthSignUp("oauth_facebook")}
-            disabled={socialLoading !== null}
-          >
-            <img src={facebookLogo} alt="Facebook" /> 
-            {socialLoading === "oauth_facebook" ? "Connecting..." : "Continue with Facebook"}
-          </button>
+          
 
           {/* Alternative: Uncomment these to use popup instead of redirect
           <button 
@@ -385,7 +378,7 @@ export default function SignupPage() {
         </div>
 
         <p className="have-account">
-          Already have an account? <Link to="/login">Log in</Link>
+          Already have an account? <Link className="login-link" to="/login">Log in</Link>
         </p>
       </div>
 

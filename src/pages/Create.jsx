@@ -26,10 +26,64 @@ export default function Create() {
     setPreview(URL.createObjectURL(f));
   }
 
+  // ---------- TAG PARSING HELPERS ----------
+  // Normalize a single raw token into a cleaned tag string
+  function cleanToken(tok) {
+    // remove leading/trailing whitespace and any characters other than letters, numbers, underscore, dash
+    const cleaned = tok.replace(/^[#\s]+|[^\w-]+$/g, '').trim();
+    // remove any internal characters that are not letters/numbers/underscore/dash
+    const finalTok = cleaned.replace(/[^\w-]+/g, '');
+    return finalTok.toLowerCase();
+  }
+
+  // Parse a raw input string into an array of tag strings (lowercase, cleaned)
+  function parseTagsFromString(raw) {
+    if (!raw || !raw.trim()) return [];
+
+    const s = raw.trim();
+
+    // If there's any '#' in the string, extract tokens after every #
+    if (s.indexOf('#') !== -1) {
+      const found = [];
+      const re = /#([^\s#]+)/g; // capture after # until whitespace or another #
+      let m;
+      while ((m = re.exec(s)) !== null) {
+        if (m[1]) {
+          const cleaned = cleanToken(m[1]);
+          if (cleaned) found.push(cleaned);
+        }
+        // Prevent infinite loops in some engines (re.lastIndex already advances)
+      }
+      return found;
+    }
+
+    // Otherwise split by any whitespace sequence
+    const parts = s.split(/\s+/);
+    const out = parts.map(p => cleanToken(p)).filter(Boolean);
+    return out;
+  }
+
+  // Add tags from a raw input string, avoid duplicates
+  function addTagsFromString(raw) {
+    const parsed = parseTagsFromString(raw);
+    if (!parsed.length) return;
+
+    setTags(prev => {
+      const existing = new Set(prev.map(t => t.toLowerCase()));
+      const merged = [...prev];
+      for (const p of parsed) {
+        if (!existing.has(p)) {
+          merged.push(p);
+          existing.add(p);
+        }
+      }
+      return merged;
+    });
+  }
+
+  // ---------- UI handlers ----------
   function handleAddTag() {
-    const t = tagInput.trim();
-    if (!t) return;
-    if (!tags.includes(t)) setTags(prev => [...prev, t]);
+    addTagsFromString(tagInput);
     setTagInput('');
   }
 
@@ -39,6 +93,14 @@ export default function Create() {
       handleAddTag();
     } else if (e.key === 'Backspace' && tagInput === '') {
       setTags(prev => prev.slice(0, -1));
+    }
+  }
+
+  // also parse tags when the input loses focus (user pasted then clicked away)
+  function handleTagBlur() {
+    if (tagInput.trim()) {
+      addTagsFromString(tagInput);
+      setTagInput('');
     }
   }
 
@@ -154,7 +216,8 @@ export default function Create() {
                   value={tagInput}
                   onChange={e => setTagInput(e.target.value)}
                   onKeyDown={handleTagKey}
-                  placeholder="Add a tag and press Enter"
+                  onBlur={handleTagBlur}
+                  placeholder="Add a tag and press Enter — you can paste many tags (#a #b or #a#b or a b c)"
                 />
                 <button type="button" className="btn ghost orange" onClick={handleAddTag}>Add</button>
               </div>
@@ -183,4 +246,3 @@ export default function Create() {
     </div>
   );
 }
-

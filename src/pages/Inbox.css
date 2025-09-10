@@ -1,4 +1,54 @@
 /* Inbox.css - FitSense dark theme */
+/* ---------- Inbox: remove stubborn white gap (page-scoped) ---------- */
+
+/* ensure this matches your header height */
+:root {
+  --app-header-height: 64px;
+}
+
+/* Cover the full viewport with the inbox visual background using a page-scoped fixed pseudo-element.
+   This prevents any underlying page color (white) from peeking through without changing global body styles. */
+.fs-inbox-root {
+  position: relative;
+  min-height: calc(100vh - var(--app-header-height));
+  box-sizing: border-box;
+  padding-bottom: 20px; /* keep composer spacing */
+  /* ensure this sits above the pseudo background */
+  z-index: 0;
+}
+
+/* fixed, page-scoped background that will always cover viewport */
+.fs-inbox-root::before {
+  content: "";
+  position: fixed;
+  inset: 0;                 /* top:0; right:0; bottom:0; left:0; */
+  background: linear-gradient(180deg, var(--bg), #050607);
+  z-index: -1;              /* behind .fs-inbox-root contents */
+  pointer-events: none;     /* doesn't block clicks */
+}
+
+/* Guarantee the body area can't push past viewport by using internal scroll */
+.fs-inbox-body {
+  min-height: calc(100vh - var(--app-header-height) - 140px); /* 140px = top header + title area + composer approx */
+  max-height: calc(100vh - var(--app-header-height) - 80px);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Make left list and convo body scroll inside their panels */
+.fs-list {
+  overflow-y: auto;
+  max-height: 100%;
+}
+.fs-convo-body {
+  overflow-y: auto;
+  max-height: calc(100vh - var(--app-header-height) - 220px); /* room for convo header + composer */
+}
+
+/* small safety: composer won't push the page taller */
+.fs-composer {
+  flex-shrink: 0;
+}
 
 :root {
   --bg: #0f1214;

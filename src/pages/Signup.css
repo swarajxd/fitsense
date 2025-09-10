@@ -14,6 +14,8 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  margin-left: -12px;
+  
 }
 
 .logo {
@@ -24,8 +26,11 @@
 
 .login-h2 {
   font-size: 35px;
+  
   margin: 0;
   margin-left: 0; /* adjusted for signup */
+  margin-top: 50px;
+
 }
 
 .welcome-text {
@@ -39,7 +44,7 @@ label {
 }
 
 .login-input {
-  width: 90%;
+  width: 100%;
   padding: 12px;
   margin-top: 5px;
   border: none;
@@ -53,24 +58,26 @@ label {
   color: #999;
 }
 
-.password-wrapper {
-  position: relative;
-}
-
-.eye-icon {
+.password-wrapper .eye-icon {
   position: absolute;
-  right: 12px;
+  right: 14px;       /* stays inside the input */
   top: 50%;
   transform: translateY(-50%);
   cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #bbb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  width: 20px;
 }
 
-.forgot-password {
-  font-size: 13px;
-  margin-top: 8px;
-  cursor: pointer;
-  color: #ccc;
-}
+
+
+
 
 .login-btn {
   margin-top: 20px;
@@ -82,6 +89,7 @@ label {
   font-weight: bold;
   font-size: 16px;
   cursor: pointer;
+  width: 100%;
 }
 
 .login-btn:hover {
@@ -169,6 +177,13 @@ label {
 .have-account {
   margin-top: 14px;
   color: #d6d6d6;
+}
+.login-link{
+
+
+  color: #ff8a00;
+  font-weight: 600;
+  text-decoration: none;
 }
 
 /* Responsive tweaks */

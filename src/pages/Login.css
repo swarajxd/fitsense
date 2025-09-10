@@ -105,6 +105,10 @@ input::placeholder {
   color: #888;
   font-weight: 400;
 }
+.input-row {
+ width: 100%;
+  position: relative;
+}
 
 .password-wrapper {
   position: relative;
@@ -119,7 +123,30 @@ input::placeholder {
   color: #888;
   transition: color 0.2s ease;
 }
-
+.password-wrapper .login-input {
+  width: 100%;
+  padding-right: 45px; /* space for the eye icon */
+}
+.input-row .login-input {
+  width: 100%;
+  padding-right: 16px; /* normal padding */
+}
+.password-wrapper .eye-icon {
+  position: absolute;
+  right: 14px;       /* stays inside the input */
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #bbb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  width: 20px;
+}
 .eye-icon:hover {
   color: #ff6600;
 }
@@ -128,8 +155,8 @@ input::placeholder {
   font-size: 14px;
   margin-top: 12px;
   cursor: pointer;
-  color: #ff6600;
-  font-weight: 500;
+  color: #ee6102;
+  font-weight: 500; 
   transition: color 0.2s ease;
   text-decoration: none;
 }
@@ -260,6 +287,13 @@ input::placeholder {
   position: relative;
   z-index: 2;
   filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.2));
+}
+.login-link{
+
+
+  color: #ff8a00;
+  font-weight: 600;
+  text-decoration: none;
 }
 
 /* Responsive Design */

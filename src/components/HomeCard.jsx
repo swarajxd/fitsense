@@ -134,10 +134,7 @@ export default function HomeCard({
       </div>
 
       {/* Footer always uses /pfp.jpg */}
-      <div className="homecard-footer">
-        <img src="/pfp.jpg" alt="pfp" className="pfp" />
-        <div className="username">{post.author}</div>
-      </div>
+      
     </article>
   );
 }

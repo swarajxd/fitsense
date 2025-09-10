@@ -1,134 +1,140 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import "./profile.css";
-import Header from '../components/header'; // Adjust path as needed
+import Header from "../components/header";
+import HomeCard from "../components/HomeCard";
 import profilePic from "../assets/profilepic.jpg";
-import EditProfile from "../components/EditProfile.jsx"; // ✅ import modal
+import EditProfile from "../components/EditProfile.jsx";
 import post1 from "../assets/post1.jpg";
 import post2 from "../assets/post2.jpg";
 import post3 from "../assets/post3.jpg";
 import post4 from "../assets/post4.jpg";
 import post5 from "../assets/post5.jpg";
-import SavedPosts from "../components/SavedPosts"; // new import
 
-// sample posts array with additional metadata
-// replace your postImages array with this (still uses the same imports)
-const postImages = [
-  { src: post1, caption: "Look 1", creator: "taha_313", creatorUsername: "taha_313" },
-  { src: post2, caption: "Look 2", creator: "alexd", creatorUsername: "alexd" },
-  { src: post3, caption: "Look 3", creator: "harryb", creatorUsername: "harryb" },
-  { src: post4, caption: "Look 4", creator: "jane_doe", creatorUsername: "janed" },
-  { src: post5, caption: "Look 5", creator: "mario", creatorUsername: "mario" },
+// Initial posts - some are already saved
+const initialPosts = [
+  { id: 1, image: post1, author: "taha_313", likes: 234, liked: false, isFollowing: false, caption: "Summer vibes and good times ☀️", isSaved: false },
+  { id: 2, image: post2, author: "taha_313", likes: 156, liked: true, isFollowing: false, caption: "Casual Friday outfit inspiration", isSaved: false },
+  { id: 3, image: post3, author: "taha_313", likes: 89, liked: false, isFollowing: false, caption: "Weekend adventures begin here", isSaved: false },
+  { id: 4, image: post4, author: "taha_313", likes: 342, liked: true, isFollowing: false, caption: "Minimalist aesthetic goals", isSaved: false },
+  { id: 5, image: post5, author: "taha_313", likes: 127, liked: false, isFollowing: false, caption: "New season, new style", isSaved: false },
 ];
 
-
-// demo images (replace with your own)
-const demoImgs = [
-  "https://images.unsplash.com/photo-1548685913-fe6678babe83?q=80&w=1000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1520974433023-c731af78f21f?q=80&w=1000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1521337706268-0f13c744c3c1?q=80&w=1000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1000&auto=format&fit=crop",
+// Additional saved posts from other users
+const additionalSavedPosts = [
+  { id: 6, image: post1, author: "style_maven", likes: 421, liked: false, isFollowing: true, caption: "Vintage finds and modern twists ✨", isSaved: true },
+  { id: 7, image: post2, author: "fashion_forward", likes: 287, liked: true, isFollowing: false, caption: "Street style inspo from Tokyo", isSaved: true },
+  { id: 8, image: post3, author: "urban_explorer", likes: 195, liked: false, isFollowing: true, caption: "City lights and night vibes 🌃", isSaved: true },
+  { id: 9, image: post4, author: "minimal_life", likes: 156, liked: false, isFollowing: false, caption: "Less is more philosophy", isSaved: true },
+  { id: 10, image: post5, author: "color_palette", likes: 298, liked: true, isFollowing: true, caption: "Playing with autumn colors 🍂", isSaved: true },
+  { id: 11, image: post1, author: "retro_revival", likes: 173, liked: false, isFollowing: false, caption: "90s comeback is real", isSaved: true },
+  { id: 12, image: post2, author: "sustainable_style", likes: 245, liked: true, isFollowing: true, caption: "Eco-friendly fashion choices 🌱", isSaved: true }
 ];
 
-export default function profile2() {
-  // ✅ user state for edit profile
-  const [user, setUser] = useState({
-    name: "Taha Sayed",
-    username: "taha_313",
-    bio: "Follow for more outfit inspiration",
-    profilePic: profilePic,
-  });
+export default function Profile() {
+  const [user, setUser] = useState(null); // start null while we fetch saved profile
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [mode, setMode] = useState("posts"); // "posts" or "saved"
+  const [mode, setMode] = useState("posts");
+  // Combine user posts with additional saved posts for a more realistic saved collection
+  const [posts, setPosts] = useState([...initialPosts, ...additionalSavedPosts]);
 
-  // create 18 demo items
-  const galleryItems = Array.from({ length: 18 }).map((_, i) => ({
-    id: i + 1,
-    img: demoImgs[i % demoImgs.length],
-  }));
+  // Fetch saved profile on mount from backend (falls back to local defaults)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("http://localhost:7000/api/profile");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Object.keys(data).length) {
+            // Your server uses avatar_url as key; support both shapes
+            setUser({
+              name: data.name || "Taha Sayed",
+              username: data.username || "taha_313",
+              bio: data.bio || "Follow for more outfit inspiration",
+              profilePic: data.avatar_url || data.profilePic || profilePic,
+              public_id: data.public_id || data.publicId || null
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch saved profile, using defaults.", err);
+      } finally {
+        // if fetch failed or returned empty, use default local fallback
+        setUser(prev => prev || {
+          name: "Taha Sayed",
+          username: "taha_313",
+          bio: "Follow for more outfit inspiration",
+          profilePic: profilePic
+        });
+        setIsLoadingUser(false);
+      }
+    })();
+  }, []);
 
+  // Merge-save handler: updates user state and closes modal
   const handleSave = (updatedUser) => {
-    setUser(updatedUser);
+    // if updatedUser is falsy, just close editor
+    if (!updatedUser) {
+      setIsEditing(false);
+      return;
+    }
+
+    setUser(prev => ({
+      ...prev,
+      name: updatedUser.name ?? prev.name,
+      username: updatedUser.username ?? prev.username,
+      bio: updatedUser.bio ?? prev.bio,
+      profilePic: updatedUser.profilePic ?? prev.profilePic,
+      public_id: updatedUser.public_id ?? prev.public_id
+    }));
+
     setIsEditing(false);
   };
 
-  const handleFollow = (username) => {
-    console.log(`Following ${username}`);
+  const handleToggleFollow = (postData) => {
+    console.log(`Following ${postData.author}`);
   };
 
-  const handleShare = (postId) => {
-    console.log(`Sharing post ${postId}`);
+  const handleToggleLike = (postData) => {
+    console.log(`Liking post ${postData.id}`);
   };
 
-  const handleEdit = (postId) => {
-    console.log(`Editing post ${postId}`);
+  // ✅ Save / Unsave handler
+  const handleSavePost = (postData) => {
+    setPosts((prevPosts) =>
+      prevPosts.map((p) =>
+        p.id === postData.id ? { ...p, isSaved: !p.isSaved } : p
+      )
+    );
   };
 
-  const masonryRef = useRef(null);
-  const postsCount = 20; // number of tiles to show (repeat the 5 sample images)
-const visiblePosts = Array.from({ length: postsCount }).map((_, i) => {
-  return postImages[i % postImages.length];
-});
+  // When user is still loading show a simple loader or fallback UI
+  if (!user) {
+    return (
+      <>
+        <Header />
+        <div style={{ padding: 24 }}>Loading profile…</div>
+      </>
+    );
+  }
 
-useEffect(() => {
-  const container = masonryRef.current;
-  if (!container) return;
+  // Filter posts: user's own posts vs all saved posts
+  const userPosts = posts.filter((post) => post.author === user.username);
+  const savedPosts = posts.filter((post) => post.isSaved);
 
-  const resizeItem = (item) => {
-    const img = item.querySelector("img");
-    if (!img) return;
-    // grid-auto-rows value
-    const style = window.getComputedStyle(container);
-    const rowHeightPx = parseInt(style.getPropertyValue("grid-auto-rows")) || 8;
-    // gap could be '16px'
-    const gapPx = parseInt(style.getPropertyValue("gap")) || parseInt(style.getPropertyValue("grid-row-gap")) || 16;
-    const imgHeight = img.getBoundingClientRect().height;
-    const rowSpan = Math.max(1, Math.ceil((imgHeight + gapPx) / (rowHeightPx + gapPx)));
-    item.style.gridRowEnd = `span ${rowSpan}`;
-  };
-
-  const resizeAll = () => {
-    const items = Array.from(container.querySelectorAll(".masonry-item"));
-    items.forEach((it) => resizeItem(it));
-  };
-
-  // handle images loaded
-  const imgs = Array.from(container.querySelectorAll("img"));
-  imgs.forEach((img) => {
-    if (img.complete) {
-      const item = img.closest(".masonry-item");
-      if (item) resizeItem(item);
-    } else {
-      img.addEventListener("load", () => {
-        const item = img.closest(".masonry-item");
-        if (item) resizeItem(item);
-      });
-    }
-  });
-
-  // on window resize, recalc
-  window.addEventListener("resize", resizeAll);
-  // small timeout to allow DOM to paint then calculate
-  const t = setTimeout(resizeAll, 60);
-
-  return () => {
-    window.removeEventListener("resize", resizeAll);
-    clearTimeout(t);
-  };
-}, [visiblePosts]); 
   return (
     <>
       <Header />
 
       <div className="fs-wrap">
         <div className="fs-container">
-          {/* LEFT: Sticky Profile Card */}
+          {/* LEFT: Profile Card */}
           <aside className="fs-profile-column">
             <div className="fs-profile-card">
               <div
                 className="fs-hero"
                 style={{ backgroundImage: `url(${user.profilePic})` }}
-                
               >
                 <div className="fs-overlay">
                   <h1 className="fs-name">{user.name}</h1>
@@ -136,125 +142,97 @@ useEffect(() => {
                   <div className="fs-bio">{user.bio}</div>
 
                   <div className="fs-stats">
-                    <div className="fs-stat"><b>234</b><span>Posts</span></div>
-                    <div className="fs-stat"><b>64</b><span>Followers</span></div>
-                    <div className="fs-stat"><b>92</b><span>Following</span></div>
+                    <div className="fs-stat">
+                      <b>{userPosts.length}</b>
+                      <span>Posts</span>
+                    </div>
+                    <div className="fs-stat">
+                      <b>64</b>
+                      <span>Followers</span>
+                    </div>
+                    <div className="fs-stat">
+                      <b>92</b>
+                      <span>Following</span>
+                    </div>
                   </div>
 
                   <div className="fs-actions">
                     <button className="fs-btn fs-btn-follow">Share</button>
                     <button
                       className="fs-btn fs-btn-ghost"
-                      onClick={() => setIsEditing(true)} // ✅ open modal
+                      onClick={() => setIsEditing(true)}
                     >
                       Edit Profile
                     </button>
                   </div>
                 </div>
-
               </div>
             </div>
           </aside>
 
-          {/* RIGHT: Scrollable Posts Column (only this column scrolls) */}
+          {/* RIGHT: Posts / Saved */}
           <main className="fs-main" role="main">
             <div className="fs-topbar">
-            {/* your existing topbar content (brand/search etc.) */}
-
-            {/* Tabs: Profile | Saved */}
-            <div className="profile-top-row">
-              <div className="profile-toggle">
-                <button
-                  className={`profile-mode-btn ${mode === "posts" ? "active" : ""}`}
-                  onClick={() => setMode("posts")}
-                >
-                  Posts
-                </button>
-
-                <button
-                  className={`profile-mode-btn ${mode === "saved" ? "active" : ""}`}
-                  onClick={() => setMode("saved")}
-                >
-                  Saved
-                </button>
+              <div className="profile-top-row">
+                <div className="profile-toggle">
+                  <button
+                    className={`profile-mode-btn ${mode === "posts" ? "active" : ""}`}
+                    onClick={() => setMode("posts")}
+                  >
+                    Posts
+                  </button>
+                  <button
+                    className={`profile-mode-btn ${mode === "saved" ? "active" : ""}`}
+                    onClick={() => setMode("saved")}
+                  >
+                    Saved ({savedPosts.length})
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          {mode === "posts" ? (
-            // scrollable gallery area
-            <div className="fs-gallery-wrap">
-              <section className="fs-gallery" aria-label="Posts gallery" ref={masonryRef}>
-                {Array.from({ length: 20 }).map((_, index) => {
-                  const postData = postImages[index % postImages.length]; // repeat images
-                  return (
-                    <div key={index} className="fs-gallery-item masonry-item">
-                      <img
-                        src={postData.src}
-                        alt={`Post ${index + 1}`}
-                        loading="lazy"
-                      />
-                      {/* Post Hover Overlay */}
-                      <div className="fs-post-overlay">
-                        <div className="fs-post-overlay-content">
-                          <div className="fs-post-header">
-                            <div className="fs-post-creator">
-                              <div className="fs-post-creator-avatar">
-                                <img src={user.profilePic} alt={postData.creator} />
-                              </div>
-                              <div className="fs-post-creator-info">
-                                <div className="fs-post-creator-name">{postData.creator}</div>
-                                <div className="fs-post-creator-username">@{postData.creatorUsername}</div>
-                              </div>
-                              <div className="fs-post-verified">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
-                                </svg>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="fs-post-caption">
-                            {postData.caption}
-                          </div>
-                          <div className="fs-post-actions">
-                            <button 
-                              className="fs-post-btn fs-post-btn-follow"
-                              onClick={() => handleFollow(postData.creatorUsername)}
-                            >
-                              Follow +
-                            </button>
-                            <button 
-                              className="fs-post-btn fs-post-btn-ghost"
-                              onClick={() => handleShare(index + 1)}
-                            >
-                              Share
-                            </button>
-                            <button 
-                              className="fs-post-btn fs-post-btn-ghost"
-                              onClick={() => handleEdit(index + 1)}
-                            >
-                              Edit
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </section>
-            </div>
-          ) : (
-             <SavedPosts
-              postImages={postImages.map(p => (typeof p === "string" ? p : p.src || p))}
-              masonryRef={masonryRef}
-            />
 
-          )}
+            {/* POSTS */}
+            {mode === "posts" ? (
+              <div className="fs-gallery-wrap">
+                <section className="fs-gallery" aria-label="Posts gallery">
+                  {userPosts.map((postData) => (
+                    <HomeCard
+                      key={postData.id}
+                      post={postData}
+                      mode="profile"
+                      onToggleFollow={() => handleToggleFollow(postData)}
+                      onToggleLike={() => handleToggleLike(postData)}
+                      onSave={() => handleSavePost(postData)}
+                    />
+                  ))}
+                </section>
+              </div>
+            ) : (
+              // SAVED POSTS
+              <div className="fs-gallery-wrap">
+                <section className="fs-gallery" aria-label="Saved posts">
+                  {savedPosts.length > 0 ? (
+                    savedPosts.map((postData) => (
+                      <HomeCard
+                        key={postData.id}
+                        post={postData}
+                        mode="profile"
+                        onToggleFollow={() => handleToggleFollow(postData)}
+                        onToggleLike={() => handleToggleLike(postData)}
+                        onSave={() => handleSavePost(postData)}
+                      />
+                    ))
+                  ) : (
+                    <p>No saved posts yet</p>
+                  )}
+                </section>
+              </div>
+            )}
           </main>
         </div>
       </div>
 
-
-      {/* ✅ EditProfile modal */}
+      {/* EditProfile modal */}
       {isEditing && (
         <EditProfile
           currentData={user}
@@ -262,7 +240,6 @@ useEffect(() => {
           onSave={handleSave}
         />
       )}
-
     </>
   );
 }
