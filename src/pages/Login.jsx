@@ -190,7 +190,7 @@ export default function LoginPage() {
       </div>
 
       <div className="login-image-section">
-        <img src={modelImage} alt="Model" className="model-img" />
+        <img src={modelImage} alt="Model" className="model1-img" />
       </div>
     </div>
   );

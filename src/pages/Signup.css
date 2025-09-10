@@ -149,6 +149,7 @@ label {
 .model-img {
   max-width: 100%;
   height: auto;
+  margin-top: 5px;
 }
 
 /* Small additions */

@@ -93,7 +93,7 @@ label {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-input:focus {
+login-input:focus {
   outline: none;
   border-color: #ff6600;
   background-color: #323232;
@@ -101,7 +101,7 @@ input:focus {
   transform: translateY(-1px);
 }
 
-input::placeholder {
+login-input::placeholder {
   color: #888;
   font-weight: 400;
 }
@@ -281,12 +281,13 @@ input::placeholder {
     radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
 }
 
-.model-img {
+.model1-img {
   max-width: 90%;
   height: auto;
   position: relative;
   z-index: 2;
   filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.2));
+  margin-top: 250px;
 }
 .login-link{
 

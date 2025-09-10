@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import "./Signup.css";
 import googleLogo from "../assets/google.png";
 import facebookLogo from "../assets/facebook.png";
-import modelImage from "../assets/model1.png";
+import modelImage from "../assets/model.png";
 import { useSignUp } from "@clerk/clerk-react";
 import { useNavigate, Link } from "react-router-dom";
 
