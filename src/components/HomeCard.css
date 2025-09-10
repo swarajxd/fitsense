@@ -1,0 +1,88 @@
+.homecard {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.img-wrap {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  transition: transform 200ms ease, filter 200ms ease;
+}
+
+.img-wrap:hover { transform: translateY(-6px) scale(1.01); filter: brightness(0.98); }
+
+.homecard-img { width: 100%; height: auto; display: block; object-fit: cover; background: #000; vertical-align: top; }
+
+/* Menu (3 dots) top-right - hidden until hover */
+.menu-wrap { position: absolute; top: 10px; right: 10px; z-index: 40; opacity: 0; transform: translateY(-4px); transition: opacity 160ms ease, transform 160ms ease; pointer-events: none; }
+.homecard:hover .menu-wrap { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.menu-wrap.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+/* remove orange background on button; keep text readable */
+.menu-item.saved {
+  background: transparent;   /* no full-button orange */
+  color: #fff;
+  font-weight: 600;
+}
+
+/* style the icon only: filled/colored orange */
+.menu-item.saved .menu-item-icon {
+  color: var(--orange, #ff8a00); /* make the icon orange */
+  /* optional niceties to make the icon look like a small filled badge */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;        /* size of the SVG */
+  margin-right: 8px;      /* space between icon and label */
+  /* if you want the icon to sit on a tiny rounded orange pill, uncomment next two lines */
+  /* background: var(--orange, #ff8a00); */
+  /* padding: 4px; border-radius: 6px; color: #111; */
+}
+
+
+.menu-btn { background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.06); color: #fff; padding: 8px; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; backdrop-filter: blur(6px); }
+
+.menu-dropdown { position: absolute; top: 44px; right: 0; background: rgba(8,8,8,0.9); border: 1px solid rgba(255,255,255,0.04); border-radius: 10px; padding: 6px; min-width: 140px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 6px; z-index: 80; }
+.menu-item { display: flex; gap: 10px; align-items: center; background: transparent; border: none; color: #fff; padding: 8px; border-radius: 8px; cursor: pointer; text-align: left; font-weight: 600; }
+.menu-item:hover { background: rgba(255,255,255,0.03); }
+.menu-item-icon { font-size: 16px; color: var(--orange, #ff8a00); }
+
+/* Top-left info shifted right so menu doesn't overlap */
+.top-left-info { position: absolute; top: 10px; left: 12px; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 20px; opacity: 0; transform: translateY(-4px); transition: opacity 160ms ease, transform 160ms ease; pointer-events: none; }
+.homecard:hover .top-left-info { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+.top-left-pfp-container { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2); background: #333; }
+.top-left-pfp { width: 100%; height: 100%; object-fit: cover; }
+.top-left-username { color: #fff; font-size: 14px; font-weight: 600; white-space: nowrap; }
+
+/* overlay */
+.homecard-overlay { position: absolute; left: 0; right: 0; bottom: 0; height: 54%; background: linear-gradient(to top, rgba(0,0,0,0.96), rgba(0,0,0,0.0)); display: flex; align-items: flex-end; justify-content: center; padding: 12px; transform: translateY(100%); transition: transform 220ms cubic-bezier(.2,.8,.2,1), opacity 200ms; opacity: 0; pointer-events: none; }
+.homecard-overlay.visible { transform: translateY(0%); opacity: 1; pointer-events: auto; }
+
+.overlay-actions { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
+.btn-follow { background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.08); padding: 6px 10px; border-radius: 12px; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); font-size: 13px; box-shadow: 0 6px 14px rgba(0,0,0,0.25); }
+.btn-follow.following { background: #f08a2e; color: #111; border: none; }
+
+.right-actions { display: flex; align-items: center; gap: 10px; }
+
+/* likes count is now plain text without a box */
+.likes-count { color: rgba(255,255,255,0.95); font-weight: 700; font-size: 14px; margin-right: 6px; }
+
+.btn-like { background: rgba(255,255,255,0.04); border-radius: 10px; padding: 8px; border: 1px solid rgba(255,255,255,0.06); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 38px; min-height: 38px; color: #fff; font-size: 1.1rem; }
+.btn-like svg { transition: transform 140ms ease; } 
+.btn-like:hover svg { transform: scale(1.08); }
+.btn-like[aria-pressed="true"] { color: #ff2d55; }
+
+.homecard-footer { display: flex; align-items: center; gap: 10px; padding: 10px 8px; margin-top: 6px; color: #ddd; background: rgba(0,0,0,0.6); border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+
+.pfp { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #333; border: 2px solid rgba(255,255,255,0.04); }
+.username { font-weight: 600; color: #ddd; font-size: 14px; }
+
+@media (max-width: 520px) {
+  .likes-count { font-size: 13px; margin-right: 4px; }
+  .menu-btn { min-width: 34px; min-height: 34px; padding: 6px; }
+}

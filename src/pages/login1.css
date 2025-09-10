@@ -1,0 +1,148 @@
+/* General Container */
+.login-container {
+  display: flex;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+}
+
+/* Left Form Section */
+.login-form-section {
+  flex: 1;
+  background-color: #1a1a1a;
+  color: #f2e9e4;
+  padding: 50px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.logo {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 30px;
+}
+
+  
+
+h2 {
+  font-size: 35px;
+  margin: 0;
+  margin-left: 270px;
+}
+
+.welcome-text {
+  margin-bottom: 30px;
+  margin-left: 180px;
+  color: #d6d6d6;
+}
+
+label {
+  font-weight: bold;
+  margin-top: 15px;
+}
+
+input {
+  width: 90%;
+  padding: 12px;
+  margin-top: 5px;
+  
+  border: none;
+  border-radius: 10px;
+  background-color: #292929;
+  color: white;
+  font-size: 14px;
+}
+
+input::placeholder {
+  color: #999;
+}
+
+.password-wrapper {
+  position: relative;
+}
+
+.eye-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.forgot-password {
+  font-size: 13px;
+  margin-top: 8px;
+  cursor: pointer;
+  color: #ccc;
+}
+
+.login-btn {
+  margin-top: 20px;
+  background-color: #ff6600;
+  border: none;
+  padding: 12px;
+  border-radius: 6px;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.login-btn:hover {
+  background-color: #e65c00;
+}
+
+/* Divider */
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+  color: #aaa;
+}
+
+.divider span {
+  flex: 1;
+  height: 1px;
+  background-color: #444;
+  margin: 0 10px;
+}
+
+/* Social Login Buttons */
+.social-login {
+  display: flex;
+  gap: 10px;
+}
+
+.social-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #555;
+  padding: 10px;
+  border-radius: 6px;
+  background-color: transparent;
+  color: white;
+  cursor: pointer;
+}
+
+.social-btn img {
+  height: 20px;
+}
+
+/* Right Image Section */
+.login-image-section {
+  flex: 1;
+  background: linear-gradient(135deg, #ff6600, #ff8533);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.model-img {
+  max-width: 100%;
+  height: auto;
+}

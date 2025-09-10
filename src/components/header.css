@@ -1,0 +1,127 @@
+:root {
+  --app-header-height: 64px;
+  --accent: #d4633a;
+  --icon-size: 32px;
+}
+
+.h-app-header {
+  width: 100%;
+  height: var(--app-header-height);
+  background: rgba(26, 26, 26, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.h-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 32px;
+  box-sizing: border-box;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.h-left {
+  display: flex;
+  align-items: center;
+}
+
+.h-right {
+  display: flex;
+  align-items: center;
+}
+
+.h-logo {
+  font-size: 30px;
+  font-weight: 600;
+  color: #d4633a;
+  letter-spacing: 2px;
+}
+
+.h-nav-icons {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: white;
+}
+
+.icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  color: #fff;
+  text-decoration: none;
+  transition: transform 140ms ease, background 140ms ease, color 140ms ease;
+  font-size: var(--icon-size);
+}
+
+.icon-link svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.icon-link:hover {
+  background: rgba(255, 255, 255, 0.03);
+  transform: translateY(-2px);
+  color: var(--accent);
+}
+
+.nav-profile-link {
+  padding: 0;
+}
+
+.nav-profile-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.sign-out-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 24px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sign-out-btn:hover {
+  color: var(--accent);
+  transform: scale(1.1);
+}
+
+@media (max-width: 850px) {
+  :root {
+    --icon-size: 24px;
+  }
+  .icon-link {
+    width: 40px;
+    height: 40px;
+  }
+  .nav-profile-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .h-header-inner {
+    padding: 0 12px;
+  }
+}

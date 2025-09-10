@@ -1,0 +1,99 @@
+:root {
+  --app-header-height: 64px;
+}
+
+/* Force dark app background everywhere (fixes stray white areas) */
+
+/* keep toggle lower so cards start below it */
+.home-top-row {
+  position: relative;
+  background: #000;
+  padding-top: calc(var(--app-header-height) + 12px);
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  z-index: 2;
+}
+
+.home-toggle {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+
+.mode-btn {
+  background: transparent;
+  color: #bdbdbd;
+  border: none;
+  padding: 6px 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  font-size: 14px;
+  position: relative;
+}
+
+.mode-btn.active { color: #fff; }
+.mode-btn.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #fff;
+  bottom: -10px;
+  border-radius: 2px;
+}
+
+.home-container {
+  background: #000; /* ensure black behind everything */
+  padding: 16px;
+  padding-top: 14px;
+  min-height: calc(100vh - var(--app-header-height) );
+  position: relative;
+}
+
+/* CSS Grid-based masonry; keep a modest bottom spacing so content doesn't create a huge empty band */
+.masonry {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  grid-auto-rows: 8px; /* small grid unit used by JS to compute spans */
+  max-width: 1400px;
+  margin: 12px auto 36px; /* reduced bottom margin to avoid large empty band */
+  padding-bottom: 12px;
+  background: transparent; /* ensure no white background */
+}
+
+/* each item will have inline grid-row-end set by JS */
+.masonry-item {
+  transition: transform 180ms ease, opacity 180ms ease;
+  display: block;
+  background: transparent;
+}
+
+/* floating create button */
+.upload-button {
+  position: fixed;
+  right: 26px;
+  bottom: 26px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: #fff;
+  color: #000;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+
+  text-decoration: none; /* ✅ removes underline */
+}
+
+
+.empty-msg { color: #888; padding: 40px; text-align: center; background: transparent; }
