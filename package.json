@@ -12,6 +12,7 @@
   "dependencies": {
     "@clerk/clerk-react": "^5.46.2",
     "firebase": "^12.2.1",
+    "framer-motion": "^12.23.12",
     "just-debounce-it": "^3.2.0",
     "lucide-react": "^0.542.0",
     "pusher-js": "^8.4.0",
