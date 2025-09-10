@@ -94,7 +94,6 @@ label {
 }
 
 
-
 .password-wrapper {
   position: relative;
 }
@@ -275,6 +274,11 @@ label {
 
 /* Focus and accessibility improvements */
 
+.login-btn:focus,
+.social-btn:focus{
+  outline: 2px solid #ff6600;
+  outline-offset: 2px;
+}
 
 /* Smooth animations */
 * {
