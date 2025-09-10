@@ -46,30 +46,52 @@ export default function Inbox() {
   const messagesRefEl = useRef(null);
 
   // initialize Pusher client (authEndpoint is server route that will use clerk to auth)
-  useEffect(() => {
-    const key = import.meta.env.VITE_PUSHER_KEY;
-    const cluster = import.meta.env.VITE_PUSHER_CLUSTER;
-    if (!key || !cluster) {
-      console.warn("PUSHER client config missing in env — real-time disabled.");
-      return;
-    }
+useEffect(() => {
+  const key = import.meta.env.VITE_PUSHER_KEY;
+  const cluster = import.meta.env.VITE_PUSHER_CLUSTER;
+  if (!key || !cluster) {
+    console.warn("PUSHER client config missing in env — real-time disabled.");
+    return;
+  }
 
+  // If using Clerk, get token to forward to server auth endpoint:
+  let authHeaders = { "Content-Type": "application/x-www-form-urlencoded" }; // pusher expects urlencoded by default
+  if (user) {
+    // clerk's SDK: user.getToken() returns a token; ensure you have @clerk/clerk-react user object available
+    user.getToken && user.getToken().then(t => {
+      authHeaders.Authorization = `Bearer ${t}`;
+      // init pusher after you have the token
+      const pusher = new Pusher(key, {
+        cluster,
+        authEndpoint: "/api/pusher/auth",
+        auth: { headers: authHeaders },
+        forceTLS: true,
+      });
+      pusherRef.current = pusher;
+    }).catch(err => {
+      console.warn('could not get clerk token for pusher auth', err);
+      const pusher = new Pusher(key, {
+        cluster,
+        authEndpoint: "/api/pusher/auth",
+        forceTLS: true,
+      });
+      pusherRef.current = pusher;
+    });
+  } else {
     const pusher = new Pusher(key, {
       cluster,
       authEndpoint: "/api/pusher/auth",
-      auth: { headers: { "Content-Type": "application/json" } },
       forceTLS: true,
     });
-
     pusherRef.current = pusher;
+  }
 
-    return () => {
-      try {
-        pusher.disconnect();
-      } catch (e) {}
-      pusherRef.current = null;
-    };
-  }, []);
+  return () => {
+    try { pusherRef.current && pusherRef.current.disconnect(); } catch (e) {}
+    pusherRef.current = null;
+  };
+}, [user]);
+
 
   // helper to scroll convo to bottom
   useEffect(() => {
