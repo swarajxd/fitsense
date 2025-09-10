@@ -3,6 +3,7 @@ import Header from "../components/header";
 import HomeCard from "../components/HomeCard";
 import "./Home.css";
 import { Link } from "react-router-dom";
+import Discover from "./Discover"
 
 const makePosts = (count = 20) =>
   Array.from({ length: count }, (_, i) => ({
@@ -139,7 +140,7 @@ export default function Home() {
             ))
           )}
         </div>
-
+<Discover />
         <Link to="/create" className="upload-button" title="Create">+</Link>
       </main>
     </>
