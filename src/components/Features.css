@@ -13,20 +13,78 @@
 
     width: 100%;
     height: 100%;
-        max-width: 1600px;
+        max-width: 1450px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    margin-top: 80px;
+    align-items: flex-start;
+    margin-top: 150px
+  
 
 }
 .feature-text2{
-    font-size: 20px;
+    font-size: 24px;
     color:var(--accent-orange);
-    margin-bottom: -10px;
+    margin-bottom: 0px;
+    margin-top: 40px;
+    margin-left: 70px;
 }
 .feature-text1{
-    font-size: 50px;
+    font-size: 40px;
     font-weight: 500;
+      margin-left: 70px;
+      margin-bottom: 60px;
+      
    
 }
+.featuresthreebox{
+  
+    width:100%;
+    height: 430px;
+    display: flex;
+  gap: 30px; /* adds 30px space between children */
+
+}
+.featurebox {
+  flex: 1;           /* equal width for all three */
+  background: #7e7d7d;  /* just for visibility */
+  height:100%;     /* example height */
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+}
+.featuresthreetextbox{
+ 
+    width: 100%;
+    height:200px;
+    display: flex;
+    gap: 30px;
+    margin-top:25px;
+}
+.featuretextbox {
+  flex: 1;           /* equal width for all three */
+
+  height:100%;     /* example height */
+  border-radius: 14px;
+}
+.featuretextsforbox{
+    font-size: 21px;
+    font-weight: 500;
+    color: #7c7c7c;
+    line-height: 1.2;
+}
+.darkfeatures{
+    color:black;
+}
+.thefeaturevideo {
+  width: 112%;         /* just a bit wider */
+  height: 112%;
+  object-fit: cover;
+  margin-left: -8%;
+}
+.thefeaturevideo1 {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;   /* ensures the image fills the box */
+  border-radius: 8px;  /* optional: rounded corners */
+}
+

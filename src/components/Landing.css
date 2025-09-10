@@ -1,119 +1,54 @@
-/* container + background */
 .landingcontainer {
-  width: 100%;
-  height: 1000px;
-  display: flex;
-  justify-content: center;
-  position: relative;   /* stacking context for absolute children */
-  overflow: hidden;     /* hide overflow so images don't push content */
-  align-items: center;  /* helps center content vertically */
-}
+    width: 100%;
+    height: 1000px;
+  
 
-/* background image must be behind everything */
-.landingback {
-  position: absolute;
-  inset: 0;                 /* top:0; right:0; bottom:0; left:0; */
-  width: 100%;
-  height: 100%;
-  object-fit: cover;        /* ensure it covers without distortion */
-  z-index: 0;               /* behind title & CTA */
-  pointer-events: none;     /* clicks pass through */
-  margin: 0;                /* remove that margin-top which caused layout oddness */
+    display: flex;
+    justify-content: center;
+    position: relative;
 }
-
-/* huge title — keep centered and above the background but below CTA */
+.landingback{
+     background-size: cover;
+    margin-top: 40px;
+    background-repeat: no-repeat;
+    z-index: 900;
+}
 .landing-title {
-  font-size: 280px;
-  line-height: 0.9;
-  letter-spacing: -20px;
-  position: absolute;
-  top: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: var(--primary-dark);
-  z-index: 10;
-  text-align: center;
+    font-size: 280px;
+    line-height: 0.9;
+    letter-spacing: -20px; /* adjust negative value to tighten */
+    position: absolute;
+    top: 80px;
+    color: var(--primary-dark);
 }
-
-/* icons and text must be above bg but below CTA */
-.icons1 {
-  position: absolute;
-  bottom: 9%;
-  right: 23%;
-  width: 250px;
-  height: 250px;
-  z-index: 15;
+.icons1{
+    position: absolute;
+    bottom:9%;
+    right:23%;
+    width: 250px;
+    height: 250px;
+    z-index: 999;
 }
-
-.randomtext1,
-.randomdiv1,
-.randomdiv2 {
-  z-index: 12;
-  position: absolute;
+.randomtext1{
+    position: absolute;
+    top: 60%;
+    right:5%;
+    font-size: 20px;
 }
-
-/* small content blocks */
-.randomtext1 {
-  top: 60%;
-  right: 5%;
-  font-size: 20px;
+.randomtext2{
+    font-size: 20px;
+    margin-bottom: 20px;
 }
-.randomtext2 { font-size: 20px; margin-bottom: 20px; }
-.randomtext3 { font-size: 14px; }
-.randomdiv1 { bottom: 15%; right: 5%; }
-.randomdiv2 { bottom: 15%; left: 5%; }
-
-/* CENTERED Get Started CTA (high z-index) */
-.get-started-wrapper {
-  position: absolute;
-  left: 50%;
-  top: 55%;                    /* vertically near center — tweak as needed */
-  transform: translate(-50%, -50%);
-  z-index: 50;                 /* must be above title & icons */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: auto;
+.randomtext3{
+     font-size: 14px;
 }
-
-/* Fancy CTA */
-.get-started-btn {
-  background: linear-gradient(135deg, #ff6600, #ff8533);
-  color: white;
-  font-size: 20px;
-  font-weight: 700;
-  padding: 16px 40px;
-  border: none;
-  border-radius: 999px;
-  cursor: pointer;
-  box-shadow: 0 12px 30px rgba(255, 102, 0, 0.22);
-  transition: transform 220ms ease, box-shadow 220ms ease;
-  letter-spacing: 0.6px;
+.randomdiv1{
+position: absolute;
+    bottom:15%;
+    right:5%;
 }
-
-/* hover / focus */
-.get-started-btn:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 18px 40px rgba(255, 102, 0, 0.28); }
-.get-started-btn:focus { outline: 3px solid rgba(255,140,60,0.18); outline-offset: 4px; }
-
-/* responsiveness */
-@media (max-width: 1200px) {
-  .landing-title {
-    font-size: 140px;
-    letter-spacing: -10px;
-    top: 40px;
-  }
-  .get-started-btn { font-size: 18px; padding: 12px 32px; }
-  .landingcontainer { height: 750px; }
-}
-
-@media (max-width: 700px) {
-  .landing-title {
-    font-size: 54px;
-    letter-spacing: -6px;
-    top: 26px;
-    line-height: 1;
-  }
-  .get-started-wrapper { top: 66%; }
-  .icons1 { display: none; } /* optional to declutter on phones */
-  .landingcontainer { height: auto; padding-bottom: 60px; }
+.randomdiv2{
+position: absolute;
+    bottom:15%;
+    left:5%;
 }
