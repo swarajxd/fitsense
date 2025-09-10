@@ -25,7 +25,7 @@ let clerkClient = null;
 try {
   const clerk = require('@clerk/clerk-sdk-node');
   clerkClient = clerk?.clerkClient || clerk?.Clerk || null;
-  if (clerkClient && !process.env.CLERK_API_KEY) {
+  if (clerkClient && !process.env.CLERK_SECRET_KEY) {
     console.warn('CLERK_API_KEY not provided — Clerk SDK loaded but will not be used without CLERK_API_KEY.');
   }
 } catch (err) {

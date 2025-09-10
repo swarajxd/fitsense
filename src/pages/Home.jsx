@@ -3,6 +3,9 @@ import Header from "../components/header";
 import HomeCard from "../components/HomeCard";
 import "./Home.css";
 import { Link } from "react-router-dom";
+import Discover from "./Discover"
+import { motion } from "framer-motion"; // 👈 add this at the top
+
 
 const makePosts = (count = 20) =>
   Array.from({ length: count }, (_, i) => ({
@@ -124,22 +127,32 @@ export default function Home() {
       <main className="home-container">
         <div className="masonry" ref={masonryRef}>
           {visiblePosts.length === 0 ? (
-            <div className="empty-msg">No posts to show. Try switching to "For you".</div>
-          ) : (
-            visiblePosts.map((post) => (
-              <div className="masonry-item" key={post.id}>
-                <HomeCard
-                  post={post}
-                  mode={mode}
-                  onToggleFollow={() => toggleFollow(post.id)}
-                  onToggleLike={() => toggleLike(post.id)}
-                  onShare={() => handleShare(post)}
-                />
-              </div>
-            ))
-          )}
+  <div className="empty-msg">No posts to show. Try switching to "For you".</div>
+) : (
+  visiblePosts.map((post, index) => (
+    <motion.div
+      className="masonry-item"
+      key={post.id}
+      initial={{ opacity: 0, y: 0 }}   // start hidden and slightly down
+      animate={{ opacity: 1, y: 0 }}     // fade in + slide up
+      transition={{
+        duration: 0.2,
+        delay: index * 0.1,              // stagger each card
+        ease: "easeOut",
+      }}
+    >
+      <HomeCard
+        post={post}
+        mode={mode}
+        onToggleFollow={() => toggleFollow(post.id)}
+        onToggleLike={() => toggleLike(post.id)}
+        onShare={() => handleShare(post)}
+      />
+    </motion.div>
+  ))
+)}
         </div>
-
+<Discover />
         <Link to="/create" className="upload-button" title="Create">+</Link>
       </main>
     </>

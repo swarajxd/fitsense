@@ -320,9 +320,9 @@ login-input::placeholder {
 }
 
 /* Focus and accessibility improvements */
+
 .login-btn:focus,
-.social-btn:focus,
-input:focus {
+.social-btn:focus{
   outline: 2px solid #ff6600;
   outline-offset: 2px;
 }
