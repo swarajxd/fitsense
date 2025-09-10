@@ -16,7 +16,7 @@ try {
   const clerk = require('@clerk/clerk-sdk-node');
   // clerk export shape varies by version; try common names
   clerkClient = clerk?.clerkClient || clerk?.Clerk || null;
-  if (clerkClient && !process.env.CLERK_API_KEY) {
+  if (clerkClient && !process.env.CLERK_SECRET_KEY) {
     console.warn('CLERK_API_KEY not provided — Clerk SDK loaded but will not be used without CLERK_API_KEY.');
   }
 } catch (err) {
@@ -57,7 +57,7 @@ app.get('/api/users', async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     // Dev fallback
-    if (!process.env.CLERK_API_KEY || !clerkClient) {
+    if (!process.env.CLERK_SECRET_KEY || !clerkClient) {
       const qlc = q.toLowerCase();
       const filtered = demoUsers.filter(u =>
         !qlc ||

@@ -5,10 +5,12 @@ import { FiCamera, FiLogOut } from "react-icons/fi";
 import { GiTShirt } from "react-icons/gi";
 import { LuMessageCircleMore } from "react-icons/lu";
 import { Link } from "react-router-dom";
-import { useUser, SignOutButton } from "@clerk/clerk-react";
+import { useUser, useClerk } from "@clerk/clerk-react";
 
 export default function Header() {
+  const { signOut } = useClerk();
   let user = null;
+  
   try {
     const u = useUser();
     user = u?.user ?? null;
@@ -22,6 +24,16 @@ export default function Header() {
     user?.image ??
     user?.photoUrl ??
     "/default-pfp.jpg";
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      // Optionally redirect after sign out
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
 
   return (
     <header className="h-app-header">
