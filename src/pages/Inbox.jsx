@@ -1,184 +1,372 @@
 // src/pages/Inbox.jsx
-import React, { useEffect, useRef, useState } from "react";
-import Header from "../components/header";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import "./Inbox.css";
+import Header from "../components/header";
 import { FaPaperPlane } from "react-icons/fa";
+import Pusher from "pusher-js";
+import { useUser } from "@clerk/clerk-react"; // Clerk frontend hook
 
-/**
- * Demo Inbox (toggle behavior)
- * - clicking the same user will close the chat (activeThread -> null)
- * - clicking another user opens that chat
- * - messages stored locally in messagesMap
- */
+
+// simple debounce helper (no external package)
+function debounce(fn, wait = 300) {
+  let t;
+  const debounced = (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+  debounced.cancel = () => clearTimeout(t);
+  return debounced;
+}
+
+// helper avatar
+function Avatar({ name, color }) {
+  const initials = (name || "U")
+    .split(" ")
+    .map(n => n[0] || "")
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return <div className="fs-avatar" style={{ background: color || "#444" }}>{initials}</div>;
+}
 
 export default function Inbox() {
-  const demoUsers = [
-    { id: "user1", username: "user1", displayName: "User One" },
-    { id: "user2", username: "user2", displayName: "User Two" },
-    { id: "user3", username: "user3", displayName: "User Three" },
-  ];
+  const { user } = useUser(); // Clerk user (must be signed in)
+  const currentUser = user ? { id: user.id, displayName: user.fullName || user.username || user.emailAddresses?.[0]?.emailAddress } : { id: "anon", displayName: "You" };
 
-  const currentUser = { id: "me", username: "you", displayName: "You" };
+  // UI state
+  const [conversations, setConversations] = useState([]); // { roomId, otherId, otherDisplayName, otherImage, createdAt }
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [messagesMap, setMessagesMap] = useState({}); // { roomId: [messages...] }
+  const [query, setQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [composeText, setComposeText] = useState("");
+  const [loadingConvos, setLoadingConvos] = useState(false);
 
-  const [users] = useState(demoUsers);
-  const [activeThread, setActiveThread] = useState(null); // null => centered view
-  const [messagesMap, setMessagesMap] = useState(() => ({
-    user1: [
-      { id: "m1", fromId: "user1", fromName: "User One", text: "Hey! Welcome to the demo chat.", createdAt: Date.now() - 1000 * 60 * 60 },
-      { id: "m2", fromId: "me", fromName: "You", text: "Thanks — this looks great!", createdAt: Date.now() - 1000 * 60 * 30 },
-    ],
-    user2: [{ id: "m3", fromId: "user2", fromName: "User Two", text: "Hello from user2.", createdAt: Date.now() - 1000 * 60 * 20 }],
-    user3: [],
-  }));
-
-  const [input, setInput] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
+  // pusher reference
+  const pusherRef = useRef(null);
+  const subscribedChannelRef = useRef(null);
   const messagesRefEl = useRef(null);
 
-  const filteredUsers = users.filter((u) => {
-    const t = searchTerm.trim().toLowerCase();
-    if (!t) return true;
-    return (u.displayName || u.username).toLowerCase().includes(t) || (u.username || "").toLowerCase().includes(t);
-  });
-
+  // initialize Pusher client (authEndpoint is server route that will use clerk to auth)
   useEffect(() => {
-    if (!activeThread) return;
-    setTimeout(() => {
-      if (messagesRefEl.current) messagesRefEl.current.scrollTop = messagesRefEl.current.scrollHeight;
-    }, 50);
-  }, [messagesMap, activeThread]);
-
-  function openChatFor(user) {
-    // toggle: if clicking currently active user -> close chat (center view)
-    if (activeThread && activeThread.id === user.id) {
-      setActiveThread(null);
-      setSearchTerm("");
-      setInput("");
+    const key = import.meta.env.VITE_PUSHER_KEY;
+    const cluster = import.meta.env.VITE_PUSHER_CLUSTER;
+    if (!key || !cluster) {
+      console.warn("PUSHER client config missing in env");
       return;
     }
-    // otherwise open this user's chat
-    setActiveThread(user);
-    setSearchTerm("");
-    setInput("");
-  }
 
-  function handleSend() {
-    if (!activeThread) return;
-    const txt = input.trim();
-    if (!txt) return;
-
-    const newMsg = {
-      id: `local_${Date.now()}`,
-      fromId: currentUser.id,
-      fromName: currentUser.displayName,
-      text: txt,
-      createdAt: Date.now(),
-    };
-
-    setMessagesMap((prev) => {
-      const prevList = prev[activeThread.id] || [];
-      return { ...prev, [activeThread.id]: [...prevList, newMsg] };
+    // pusher-js options: using private channels (authEndpoint below)
+    const pusher = new Pusher(key, {
+      cluster,
+      authEndpoint: "/api/pusher/auth",
+      auth: { headers: { "Content-Type": "application/json" } },
+      forceTLS: true,
     });
 
-    setInput("");
-  }
+    pusherRef.current = pusher;
 
-  function handleKeyDown(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+    return () => {
+      try {
+        pusher.disconnect();
+      } catch (e) {}
+      pusherRef.current = null;
+    };
+  }, []);
+
+  // helper to scroll convo to bottom
+  useEffect(() => {
+    if (!selectedRoomId) return;
+    setTimeout(() => {
+      if (messagesRefEl.current) messagesRefEl.current.scrollTop = messagesRefEl.current.scrollHeight;
+    }, 100);
+  }, [messagesMap, selectedRoomId]);
+
+  // load conversations on mount
+  useEffect(() => {
+    async function loadConvos() {
+      setLoadingConvos(true);
+      try {
+        const res = await fetch("/api/conversations");
+        if (!res.ok) throw new Error("Failed to fetch convos");
+        const json = await res.json();
+        setConversations(json.conversations || []);
+        // if there is at least one convo, preselect the most recent
+        if ((json.conversations || []).length > 0 && !selectedRoomId) {
+          setSelectedRoomId(json.conversations[0].roomId);
+        }
+      } catch (err) {
+        console.error("Load convos error", err);
+      } finally {
+        setLoadingConvos(false);
+      }
+    }
+    loadConvos();
+  }, []);
+
+  // subscribe to Pusher for the selected conversation's roomId
+  useEffect(() => {
+    const pusher = pusherRef.current;
+    if (!pusher) return;
+    // unsubscribe previous
+    if (subscribedChannelRef.current) {
+      try {
+        pusher.unsubscribe(subscribedChannelRef.current);
+      } catch (e) {}
+      subscribedChannelRef.current = null;
+    }
+
+    if (!selectedRoomId) return;
+
+    const channelName = `private-chat_${selectedRoomId}`;
+    subscribedChannelRef.current = channelName;
+
+    const channel = pusher.subscribe(channelName);
+
+    const handler = (msg) => {
+      // append incoming message
+      setMessagesMap(prev => {
+        const prevList = prev[selectedRoomId] || [];
+        // dedupe by id
+        if (prevList.some(m => m.id === msg.id)) return prev;
+        return { ...prev, [selectedRoomId]: [...prevList, msg] };
+      });
+    };
+
+    channel.bind("message", handler);
+
+    return () => {
+      try {
+        channel.unbind("message", handler);
+        pusher.unsubscribe(channelName);
+      } catch (e) {}
+    };
+  }, [selectedRoomId]);
+
+  // scroll whenever messages change
+  useEffect(() => {
+    if (!selectedRoomId) return;
+    const node = messagesRefEl.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [messagesMap, selectedRoomId]);
+
+  // search users (debounced)
+  const doSearch = useCallback(debounce(async (q) => {
+    if (!q || q.trim().length < 1) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const r = await fetch(`/api/users?q=${encodeURIComponent(q)}`);
+      if (!r.ok) throw new Error("search failed");
+      const list = await r.json();
+      setSearchResults(list || []);
+    } catch (err) {
+      console.error("search error", err);
+    }
+  }, 300), []);
+
+  useEffect(() => {
+    doSearch(query);
+  }, [query, doSearch]);
+
+  // create/start conversation with a searched user
+  async function startConversationWith(userObj) {
+    try {
+      const body = { participantId: userObj.id, participantDisplayName: userObj.displayName || userObj.username, participantImage: userObj.imageUrl || null };
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("failed to create conversation");
+      const json = await res.json();
+      const roomId = json.roomId;
+      // add to local conversations list (optimistic)
+      setConversations(prev => {
+        // avoid duplicates
+        if (prev.some(c => c.roomId === roomId)) return prev;
+        return [{ roomId, otherId: userObj.id, otherDisplayName: userObj.displayName, otherImage: userObj.imageUrl, createdAt: Date.now() }, ...prev];
+      });
+      // open the convo
+      setSelectedRoomId(roomId);
+      setSearchResults([]);
+      setQuery("");
+    } catch (err) {
+      console.error("start convo error", err);
     }
   }
 
-  const activeMessages = (activeThread && messagesMap[activeThread.id]) || [];
-  const pageClass = !activeThread ? "centered" : "with-chat";
+  // send message via server (server will trigger pusher)
+  async function sendMessage(e) {
+    e?.preventDefault?.();
+    if (!selectedRoomId || !composeText.trim()) return;
+    const text = composeText.trim();
 
+    // optimistic UI: append local message (id prefixed local_)
+    const localMsg = {
+      id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      fromId: currentUser.id,
+      fromName: currentUser.displayName || "You",
+      text,
+      createdAt: Date.now(),
+    };
+    setMessagesMap(prev => {
+      const prevList = prev[selectedRoomId] || [];
+      return { ...prev, [selectedRoomId]: [...prevList, localMsg] };
+    });
+    setComposeText("");
+
+    try {
+      const res = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId: selectedRoomId, text }),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error("send message failed:", txt);
+        return;
+      }
+      // server will trigger Pusher; other clients receive official message
+      // optionally you can update local message id / replace with server payload if returned
+      const json = await res.json();
+      // If server returns the payload, replace the optimistic message by id (optional)
+      if (json.payload && json.payload.id) {
+        setMessagesMap(prev => {
+          const list = (prev[selectedRoomId] || []).map(m => (m.id === localMsg.id ? json.payload : m));
+          return { ...prev, [selectedRoomId]: list };
+        });
+      }
+    } catch (err) {
+      console.error("send error", err);
+    }
+  }
+
+  // helpers to display conversation name & room mapping
+  const selectedConvo = conversations.find(c => c.roomId === selectedRoomId);
+
+  // render
   return (
-    <div className={`inbox-page ${pageClass}`}>
+    <div className="fs-inbox-root">
       <Header />
 
-      <main className="inbox-main">
-        {/* Left column: search + user list */}
-        <aside className={`threads-col ${!activeThread ? "center-mode" : "left-mode"}`}>
-          <div className="search-wrap">
-            <input
-              className="search-input"
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              aria-label="Search users"
-            />
+      <div className="fs-inbox-header">
+        <h2>Inbox</h2>
+        <div className="fs-header-controls">
+          <button className="fs-btn new-convo">+ New Conversation</button>
+        </div>
+      </div>
+
+      <div className="fs-inbox-body">
+        <aside className="fs-left-col">
+          <div className="fs-left-top">
+            <div className="fs-tabs" role="tablist" aria-label="message tabs">
+              <button className={`fs-tab`}>All Messages</button>
+              <button className={`fs-tab`}>Unread</button>
+            </div>
+
+            <div className="fs-search">
+              <svg className="fs-search-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+                <path fill="currentColor" d="M21 21l-4.35-4.35"></path>
+                <circle cx="11" cy="11" r="6" stroke="currentColor" strokeWidth="1" fill="none"></circle>
+              </svg>
+              <input
+                placeholder="Search users by name or username"
+                aria-label="Search users"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="threads-list" aria-label="Users list">
-            {filteredUsers.map((u) => (
-              <button
-                key={u.id}
-                className={`thread-item ${activeThread?.id === u.id ? "active" : ""}`}
-                onClick={() => openChatFor(u)}
+          <div className="fs-list" role="list">
+            {/* search results take precedence */}
+            {query && searchResults.length > 0 && (
+              <>
+                <div style={{ padding: "8px 6px", color: "var(--muted)", fontSize: 13 }}>Search results</div>
+                {searchResults.map(u => (
+                  <div key={u.id} className="fs-list-item" onClick={() => startConversationWith(u)} role="button">
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                      <div className="fs-avatar" style={{ background: "#2d2d2d" }}>{(u.displayName||u.username||"U")[0]?.toUpperCase()}</div>
+                      <div style={{ textAlign: "left" }}>
+                        <div style={{ fontWeight: 700 }}>{u.displayName || u.username}</div>
+                        <div style={{ color: "var(--muted)", fontSize: 12 }}>@{u.username || (u.email || "").split("@")[0]}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* conversations list */}
+            {loadingConvos && <div className="fs-empty">Loading conversations…</div>}
+            {!query && conversations.length === 0 && <div className="fs-empty">No conversations — start one by searching above</div>}
+            {!query && conversations.map(c => (
+              <div
+                key={c.roomId}
+                className={`fs-list-item ${selectedRoomId === c.roomId ? "selected" : ""}`}
+                onClick={() => { setSelectedRoomId(c.roomId); }}
+                role="listitem"
               >
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <img  
-                  src="/pfp.jpg"  
-                alt={`${u.displayName} avatar`}  
-                  className="user-circle-small"  
-                /> 
-                <div style={{ textAlign: "left" }}>
-                  <div className="thread-title">{u.displayName}</div>
-                  <div className="thread-sub">@{u.username}</div>
+                <Avatar name={c.otherDisplayName || c.otherId} color="#2b2b2b" />
+                <div className="fs-list-meta">
+                  <div className="fs-list-top">
+                    <div className="fs-name">{c.otherDisplayName || c.otherId}</div>
+                    <div className="fs-time">{new Date(c.createdAt || Date.now()).toLocaleDateString()}</div>
+                  </div>
+                  <div className="fs-preview">
+                    <span className="fs-last-msg">Conversation</span>
+                  </div>
                 </div>
               </div>
-              </button>
             ))}
           </div>
         </aside>
 
-        {/* Right column: messages (hidden until a user is selected) */}
-        <section className={`messages-col ${activeThread ? "visible" : "hidden"}`}>
-          <div className="messages-header">
-            <div className="thread-name">{activeThread ? activeThread.displayName : "Select a user"}</div>
+        <main className="fs-right-col">
+          <div className="fs-convo-header">
+            <div className="fs-convo-left">
+              <Avatar name={selectedConvo?.otherDisplayName || "No one"} color="#333" />
+              <div className="fs-convo-title">
+                <div className="fs-convo-name">{selectedConvo?.otherDisplayName || "Select a conversation"}</div>
+                <div className="fs-convo-sub">{selectedConvo ? ("@" + (selectedConvo.otherId || "").slice(0,8)) : ""} • Active</div>
+              </div>
+            </div>
+            <div className="fs-convo-actions">
+              <button className="icon-btn" title="More">⋯</button>
+            </div>
           </div>
 
-          <div className="messages" ref={messagesRefEl}>
-            {(!activeThread || activeMessages.length === 0) && (
-              <div className="empty">{activeThread ? "No messages yet — say hi 👋" : "Select a user to view chat"}</div>
-            )}
+          <div className="fs-convo-body" ref={messagesRefEl}>
+            {(!selectedRoomId) && <div className="fs-empty">Select a conversation to view messages</div>}
 
-            {activeMessages.map((m) => (
-              <div key={m.id} className={`msg ${m.fromId === currentUser.id ? "me" : "bot"}`}>
-                <div className="msg-meta">
-                  <div className="msg-sender">{m.fromName}</div>
-                  <div className="msg-time">{new Date(m.createdAt).toLocaleTimeString()}</div>
-                </div>
-                {m.text && <div className="text">{m.text}</div>}
+            {selectedRoomId && (messagesMap[selectedRoomId] || []).map((m) => (
+              <div key={m.id} className={`fs-msg ${m.fromId === currentUser.id ? "from-me" : "from-them"}`}>
+                <div className="fs-msg-bubble">{m.text}</div>
+                <div className="fs-msg-time">{new Date(m.createdAt).toLocaleTimeString()}</div>
               </div>
             ))}
           </div>
 
-        {/* Composer: full-width input + compact send button */}
-        <div className="composer">
-          <div className="composer-inner">
-            <textarea
-              className="composer-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={activeThread ? `Message ${activeThread.displayName}...` : "Select a user first"}
-              rows={1}
-              onKeyDown={handleKeyDown}
-              disabled={!activeThread}
+          <form className="fs-composer" onSubmit={sendMessage}>
+            <input
+              className="fs-input"
+              placeholder={selectedConvo ? `Message ${selectedConvo.otherDisplayName}...` : "Select a user to message"}
+              value={composeText}
+              onChange={(e) => setComposeText(e.target.value)}
+              disabled={!selectedRoomId}
             />
-            <button
-              className="composer-send"
-              onClick={handleSend}
-              aria-label="Send message"
-              disabled={!activeThread || !input.trim()}
-            >
-              <FaPaperPlane />
-            </button>
-          </div>
-        </div>
-        </section>
-      </main>
+            <div className="fs-composer-actions">
+              <button type="button" className="icon-btn" title="Attach">+</button>
+              <button type="submit" className="fs-send-btn" disabled={!selectedRoomId || !composeText.trim()}>
+                <FaPaperPlane />
+              </button>
+            </div>
+          </form>
+        </main>
+      </div>
     </div>
   );
 }
