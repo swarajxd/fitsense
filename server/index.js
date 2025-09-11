@@ -5,15 +5,20 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
-
+const postsRouter = require('./routes/posts');
 const app = express();
 const PORT = process.env.PORT || 7000;
+/*upload posts*/
+
 
 /* ---------- Middleware ---------- */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // parse JSON and form bodies (Pusher may send urlencoded)
 app.use(cors());
+app.use('/api/posts', postsRouter);
+app.get('/health', (req, res) => res.json({ ok: true }));
 
+app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
 /* ---------- Existing routes (Cloudinary / uploads / profile) ---------- */
 const uploadRoutes = require("./routes/upload");
 app.use("/api/uploads", uploadRoutes);

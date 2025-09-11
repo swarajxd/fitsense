@@ -88,7 +88,7 @@ export default function SignupPage() {
         // Sign-up completed immediately (no verification needed)
         await setActive({ session: result.createdSessionId });
         setSuccess("Account created successfully! Redirecting...");
-        setTimeout(() => navigate("/discover"), 1500);
+        setTimeout(() => navigate("/Home"), 1500);
       } else if (result.status === "missing_requirements") {
         // Handle email verification requirement
         if (result.unverifiedFields?.includes("email_address")) {
@@ -137,7 +137,7 @@ export default function SignupPage() {
       if (completeSignUp.status === "complete") {
         await setActive({ session: completeSignUp.createdSessionId });
         setSuccess("Email verified! Account created successfully. Redirecting...");
-        setTimeout(() => navigate("/discover"), 1500);
+        setTimeout(() => navigate("/home"), 1500);
       } else {
         setError("Verification failed. Please check your code and try again.");
       }
@@ -163,8 +163,8 @@ export default function SignupPage() {
       
       await signUp.authenticateWithRedirect({
         strategy,
-        redirectUrl: "/discover",
-        redirectUrlComplete: "/discover",
+        redirectUrl: "/home",
+        redirectUrlComplete: "/home",
       });
     } catch (err) {
       console.error(`${strategy} sign up error:`, err);
@@ -173,29 +173,7 @@ export default function SignupPage() {
     }
   }
 
-  // Alternative: Handle OAuth sign-up with popup
-  async function handleOAuthSignUpPopup(strategy) {
-    if (!isLoaded) return;
-    
-    try {
-      setSocialLoading(strategy);
-      setError("");
-      
-      const result = await signUp.authenticateWithPopup({
-        strategy,
-      });
-
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        navigate("/discover");
-      }
-    } catch (err) {
-      console.error(`${strategy} popup sign up error:`, err);
-      setError(err?.errors?.[0]?.message || err?.message || `${strategy} sign up failed`);
-    } finally {
-      setSocialLoading(null);
-    }
-  }
+  
 
   // Show verification form if pending
   if (pendingVerification) {
@@ -355,7 +333,6 @@ export default function SignupPage() {
 
           {/* Direct Facebook OAuth - uses redirect by default */}
           
-
           {/* Alternative: Uncomment these to use popup instead of redirect
           <button 
             className="social-btn" 

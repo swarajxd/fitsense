@@ -32,7 +32,7 @@
    Lock its height so right column can scroll independently. */
 .fs-container {
   width: 100%;
-  max-width: 1500px; /* Increased from 1350px to allow more width */
+  max-width: 2000px; /* Increased from 1350px to allow more width */
 
   margin: 0 auto;
   display: grid;

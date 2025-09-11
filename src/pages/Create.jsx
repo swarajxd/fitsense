@@ -1,7 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import './Create.css';
 import Header from "../components/header";
 import { FiUpload, FiPlus } from 'react-icons/fi';
+import { supabase } from '../lib/supabaseClient';
+import { useUser, useAuth } from '@clerk/clerk-react';
 
 export default function Create() {
   const [file, setFile] = useState(null);
@@ -9,65 +11,107 @@ export default function Create() {
   const [caption, setCaption] = useState('');
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
   const fileRef = useRef(null);
+  const { user } = useUser(); // Clerk user
+  const { getToken } = useAuth(); // for attaching token when calling server (optional/recommended)
 
-  function handleFileChange(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+  // cleanup object URL to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  // ---------------- HELPERS ----------------
+  async function uploadFileToSupabase(fileToUpload, userId) {
+    if (!fileToUpload) return { path: null, publicURL: null };
+
+    // optional quick client-side validation
+    // if (fileToUpload.size > 5 * 1024 * 1024) throw new Error('File too large (max 5MB)');
+
+    const timestamp = Date.now();
+    const cleanName = fileToUpload.name.replace(/\s+/g, '_');
+    const filePath = `uploads/${userId}/${timestamp}_${cleanName}`;
+
+    const { data, error } = await supabase.storage
+      .from('posts')
+      .upload(filePath, fileToUpload, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: fileToUpload.type,
+      });
+
+    if (error) {
+      console.error('Supabase upload error', error);
+      throw error;
+    }
+
+    // For public buckets:
+    const { data: publicData } = supabase.storage.from('posts').getPublicUrl(filePath);
+    return { path: filePath, publicURL: publicData?.publicUrl ?? null };
   }
 
-  function handleDrop(e) {
-    e.preventDefault();
-    const f = e.dataTransfer.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+  async function uploadToServer(fileToUpload, userId, captionVal, tagsArr) {
+    if (!fileToUpload) throw new Error('No file provided');
+
+    const fd = new FormData();
+    fd.append('file', fileToUpload);
+    fd.append('userId', userId);
+    fd.append('caption', captionVal || '');
+    fd.append('tags', JSON.stringify(tagsArr || []));
+
+    // optional: attach Clerk token for server verification
+    let token = null;
+    try {
+      token = await getToken();
+    } catch (err) {
+      console.warn('getToken error (continuing without token):', err);
+    }
+
+    const base = (import.meta.env.VITE_API_BASE_URL) ?? 'http://localhost:4000';
+    const resp = await fetch(`${base}/api/upload`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: fd,
+    });
+
+    const json = await resp.json();
+    if (!resp.ok) {
+      throw new Error(json.error || 'Server upload failed');
+    }
+    return { path: json.path, publicURL: json.url ?? json.publicUrl ?? null };
   }
 
-  // ---------- TAG PARSING HELPERS ----------
-  // Normalize a single raw token into a cleaned tag string
+  // ---------------- TAG HELPERS ----------------
   function cleanToken(tok) {
-    // remove leading/trailing whitespace and any characters other than letters, numbers, underscore, dash
     const cleaned = tok.replace(/^[#\s]+|[^\w-]+$/g, '').trim();
-    // remove any internal characters that are not letters/numbers/underscore/dash
-    const finalTok = cleaned.replace(/[^\w-]+/g, '');
-    return finalTok.toLowerCase();
+    return cleaned.replace(/[^\w-]+/g, '').toLowerCase();
   }
 
-  // Parse a raw input string into an array of tag strings (lowercase, cleaned)
   function parseTagsFromString(raw) {
     if (!raw || !raw.trim()) return [];
-
     const s = raw.trim();
-
-    // If there's any '#' in the string, extract tokens after every #
     if (s.indexOf('#') !== -1) {
       const found = [];
-      const re = /#([^\s#]+)/g; // capture after # until whitespace or another #
+      const re = /#([^\s#]+)/g;
       let m;
       while ((m = re.exec(s)) !== null) {
         if (m[1]) {
           const cleaned = cleanToken(m[1]);
           if (cleaned) found.push(cleaned);
         }
-        // Prevent infinite loops in some engines (re.lastIndex already advances)
       }
       return found;
     }
-
-    // Otherwise split by any whitespace sequence
     const parts = s.split(/\s+/);
-    const out = parts.map(p => cleanToken(p)).filter(Boolean);
-    return out;
+    return parts.map(p => cleanToken(p)).filter(Boolean);
   }
 
-  // Add tags from a raw input string, avoid duplicates
   function addTagsFromString(raw) {
     const parsed = parseTagsFromString(raw);
     if (!parsed.length) return;
-
     setTags(prev => {
       const existing = new Set(prev.map(t => t.toLowerCase()));
       const merged = [...prev];
@@ -81,7 +125,6 @@ export default function Create() {
     });
   }
 
-  // ---------- UI handlers ----------
   function handleAddTag() {
     addTagsFromString(tagInput);
     setTagInput('');
@@ -96,7 +139,6 @@ export default function Create() {
     }
   }
 
-  // also parse tags when the input loses focus (user pasted then clicked away)
   function handleTagBlur() {
     if (tagInput.trim()) {
       addTagsFromString(tagInput);
@@ -108,12 +150,101 @@ export default function Create() {
     setTags(prev => prev.filter((_, i) => i !== index));
   }
 
-  function handleSubmit(e) {
+  // ---------------- FILE HANDLERS ----------------
+  function handleFileChange(e) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+  }
+
+  function handleDrop(e) {
     e.preventDefault();
-    // Replace with actual upload logic / API call
-    const payload = { caption: caption.trim(), tags, fileName: file?.name ?? null };
-    console.log('Submitting post', payload);
-    alert('Post submitted (check console). Replace handleSubmit with real upload logic.');
+    const f = e.dataTransfer.files?.[0];
+    if (!f) return;
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+  }
+
+  // ---------------- SUBMIT ----------------
+  // You said your buckets are public -> use client upload then store metadata on server.
+  // Set this to true if you want server to accept the file and upload it itself.
+  const useServerUpload = false;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!user) {
+      alert('You must be signed in to post.');
+      return;
+    }
+    if (!file) {
+      alert('Please choose a file first.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let image_path = null;
+      let image_url = null;
+
+      if (file) {
+        if (useServerUpload) {
+          const res = await uploadToServer(file, user.id, caption, tags);
+          image_path = res.path;
+          image_url = res.publicURL;
+        } else {
+          const res = await uploadFileToSupabase(file, user.id);
+          image_path = res.path;
+          image_url = res.publicURL;
+        }
+      }
+
+      // If server already inserted metadata (upload endpoint did), skip this step.
+      if (!useServerUpload) {
+        // call your server to create posts row (server should verify Clerk token in prod)
+        const base = (import.meta.env.VITE_API_BASE_URL) ?? 'http://localhost:7000';
+
+        const body = {
+          userId: user.id,
+          caption: caption.trim() || null,
+          tags: tags.length ? tags : null,
+          image_path,
+          image_url
+        };
+        // optional: attach Clerk token
+        let token = null;
+        try { token = await getToken(); } catch (e) { /* ignore */ }
+
+        const resp = await fetch(`${base}/api/posts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(body)
+        });
+
+        const json = await resp.json();
+        if (!resp.ok) {
+          throw new Error(json.error || 'Failed to save post metadata');
+        }
+        // json.post contains inserted row
+      }
+
+      alert('Post uploaded successfully.');
+      setCaption('');
+      setTags([]);
+      if (preview) { URL.revokeObjectURL(preview); }
+      setPreview(null);
+      setFile(null);
+    } catch (err) {
+      console.error(err);
+      alert('Upload failed: ' + (err.message || err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -164,7 +295,7 @@ export default function Create() {
                   <button
                     type="button"
                     className="btn ghost"
-                    onClick={() => { setPreview(null); setFile(null); }}
+                    onClick={() => { if (preview) URL.revokeObjectURL(preview); setPreview(null); setFile(null); }}
                   >
                     Remove
                   </button>
@@ -230,13 +361,13 @@ export default function Create() {
                 <button
                   type="button"
                   className="btn ghost"
-                  onClick={() => { setCaption(''); setTags([]); setPreview(null); setFile(null); }}
+                  onClick={() => { setCaption(''); setTags([]); if (preview) URL.revokeObjectURL(preview); setPreview(null); setFile(null); }}
                 >
                   Clear
                 </button>
 
-                <button type="submit" className="btn primary">
-                  Post
+                <button type="submit" className="btn primary" disabled={loading}>
+                  {loading ? 'Uploading...' : 'Post'}
                 </button>
               </div>
             </div>

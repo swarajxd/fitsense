@@ -12,7 +12,7 @@ export default function Landing(){
   useEffect(() => {
     // when Clerk reports signed-in, go to Discover
     if (isSignedIn) {
-      navigate("/Discover");
+      navigate("/home");
     }
   }, [isSignedIn, navigate]);
 

@@ -1,16 +1,20 @@
+// src/pages/profile.jsx
 import React, { useEffect, useState } from "react";
 import "./profile.css";
 import Header from "../components/header";
 import HomeCard from "../components/HomeCard";
 import profilePic from "../assets/profilepic.jpg";
 import EditProfile from "../components/EditProfile.jsx";
+import { supabase } from "../lib/supabaseClient";
+import { useUser } from "@clerk/clerk-react";
+
+// Keep these as local fallback if Supabase is unreachable
 import post1 from "../assets/post1.jpg";
 import post2 from "../assets/post2.jpg";
 import post3 from "../assets/post3.jpg";
 import post4 from "../assets/post4.jpg";
 import post5 from "../assets/post5.jpg";
 
-// Initial posts - some are already saved
 const initialPosts = [
   { id: 1, image: post1, author: "taha_313", likes: 234, liked: false, isFollowing: false, caption: "Summer vibes and good times ☀️", isSaved: false },
   { id: 2, image: post2, author: "taha_313", likes: 156, liked: true, isFollowing: false, caption: "Casual Friday outfit inspiration", isSaved: false },
@@ -19,26 +23,16 @@ const initialPosts = [
   { id: 5, image: post5, author: "taha_313", likes: 127, liked: false, isFollowing: false, caption: "New season, new style", isSaved: false },
 ];
 
-// Additional saved posts from other users
-const additionalSavedPosts = [
-  { id: 6, image: post1, author: "style_maven", likes: 421, liked: false, isFollowing: true, caption: "Vintage finds and modern twists ✨", isSaved: true },
-  { id: 7, image: post2, author: "fashion_forward", likes: 287, liked: true, isFollowing: false, caption: "Street style inspo from Tokyo", isSaved: true },
-  { id: 8, image: post3, author: "urban_explorer", likes: 195, liked: false, isFollowing: true, caption: "City lights and night vibes 🌃", isSaved: true },
-  { id: 9, image: post4, author: "minimal_life", likes: 156, liked: false, isFollowing: false, caption: "Less is more philosophy", isSaved: true },
-  { id: 10, image: post5, author: "color_palette", likes: 298, liked: true, isFollowing: true, caption: "Playing with autumn colors 🍂", isSaved: true },
-  { id: 11, image: post1, author: "retro_revival", likes: 173, liked: false, isFollowing: false, caption: "90s comeback is real", isSaved: true },
-  { id: 12, image: post2, author: "sustainable_style", likes: 245, liked: true, isFollowing: true, caption: "Eco-friendly fashion choices 🌱", isSaved: true }
-];
-
 export default function Profile() {
-  const [user, setUser] = useState(null); // start null while we fetch saved profile
+  const { user } = useUser();
+  const [profile, setProfile] = useState(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [mode, setMode] = useState("posts");
-  // Combine user posts with additional saved posts for a more realistic saved collection
-  const [posts, setPosts] = useState([...initialPosts, ...additionalSavedPosts]);
+  const [posts, setPosts] = useState([]); // will be populated from Supabase
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
 
-  // Fetch saved profile on mount from backend (falls back to local defaults)
+  // Load minimal profile info (existing approach: server endpoint fallback)
   useEffect(() => {
     (async () => {
       try {
@@ -46,22 +40,21 @@ export default function Profile() {
         if (res.ok) {
           const data = await res.json();
           if (data && Object.keys(data).length) {
-            // Your server uses avatar_url as key; support both shapes
-            setUser({
+            setProfile({
               name: data.name || "Taha Sayed",
               username: data.username || "taha_313",
               bio: data.bio || "Follow for more outfit inspiration",
               profilePic: data.avatar_url || data.profilePic || profilePic,
               public_id: data.public_id || data.publicId || null
             });
+            setIsLoadingUser(false);
             return;
           }
         }
       } catch (err) {
         console.warn("Could not fetch saved profile, using defaults.", err);
       } finally {
-        // if fetch failed or returned empty, use default local fallback
-        setUser(prev => prev || {
+        setProfile({
           name: "Taha Sayed",
           username: "taha_313",
           bio: "Follow for more outfit inspiration",
@@ -72,15 +65,66 @@ export default function Profile() {
     })();
   }, []);
 
-  // Merge-save handler: updates user state and closes modal
+  // Fetch posts uploaded by current user from Supabase
+  useEffect(() => {
+    if (!user) {
+      // User not available yet: keep loading until Clerk provides user
+      setIsLoadingPosts(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      setIsLoadingPosts(true);
+      try {
+        // Query posts by user_id (your posts table schema)
+        const { data, error } = await supabase
+          .from("posts")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Error fetching posts:", error);
+          // fallback to initialPosts so UI is not empty
+          if (!cancelled) setPosts(initialPosts);
+        } else {
+          // Map DB rows to the format your HomeCard expects
+          const mapped = (data || []).map((row) => {
+            return {
+              id: row.id,
+              image: row.image_url || row.image_path || post1, // fallback image
+              author: profile?.username || (user?.username ?? user?.id?.split('_')[0]) || "you",
+              likes: row.likes ?? 0,
+              liked: row.liked ?? false,
+              isFollowing: false,
+              caption: row.caption ?? "",
+              isSaved: row.is_saved ?? false,
+              tags: Array.isArray(row.tags) ? row.tags : (row.tags ? JSON.parse(row.tags) : []),
+              raw: row // keep raw DB row for any further actions
+            };
+          });
+
+          if (!cancelled) setPosts(mapped.length ? mapped : initialPosts);
+        }
+      } catch (err) {
+        console.error("Exception fetching posts:", err);
+        if (!cancelled) setPosts(initialPosts);
+      } finally {
+        if (!cancelled) setIsLoadingPosts(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user, profile]); // re-run if user or profile changes
+
   const handleSave = (updatedUser) => {
-    // if updatedUser is falsy, just close editor
     if (!updatedUser) {
       setIsEditing(false);
       return;
     }
 
-    setUser(prev => ({
+    setProfile(prev => ({
       ...prev,
       name: updatedUser.name ?? prev.name,
       username: updatedUser.username ?? prev.username,
@@ -100,7 +144,6 @@ export default function Profile() {
     console.log(`Liking post ${postData.id}`);
   };
 
-  // ✅ Save / Unsave handler
   const handleSavePost = (postData) => {
     setPosts((prevPosts) =>
       prevPosts.map((p) =>
@@ -109,8 +152,7 @@ export default function Profile() {
     );
   };
 
-  // When user is still loading show a simple loader or fallback UI
-  if (!user) {
+  if (isLoadingUser || !profile) {
     return (
       <>
         <Header />
@@ -119,8 +161,11 @@ export default function Profile() {
     );
   }
 
-  // Filter posts: user's own posts vs all saved posts
-  const userPosts = posts.filter((post) => post.author === user.username);
+  const userPosts = posts.filter((post) => {
+    // some posts are from fallback initialPosts which use author by username; prefer DB rows by comparing user.id if available
+    if (post.raw && post.raw.user_id) return post.raw.user_id === user.id;
+    return post.author === profile.username;
+  });
   const savedPosts = posts.filter((post) => post.isSaved);
 
   return (
@@ -134,12 +179,12 @@ export default function Profile() {
             <div className="fs-profile-card">
               <div
                 className="fs-hero"
-                style={{ backgroundImage: `url(${user.profilePic})` }}
+                style={{ backgroundImage: `url(${profile.profilePic})` }}
               >
                 <div className="fs-overlay">
-                  <h1 className="fs-name">{user.name}</h1>
-                  <div className="fs-handle">@{user.username}</div>
-                  <div className="fs-bio">{user.bio}</div>
+                  <h1 className="fs-name">{profile.name}</h1>
+                  <div className="fs-handle">@{profile.username}</div>
+                  <div className="fs-bio">{profile.bio}</div>
 
                   <div className="fs-stats">
                     <div className="fs-stat">
@@ -192,42 +237,51 @@ export default function Profile() {
             </div>
 
             {/* POSTS */}
-            {mode === "posts" ? (
-              <div className="fs-gallery-wrap">
-                <section className="fs-gallery" aria-label="Posts gallery">
-                  {userPosts.map((postData) => (
-                    <HomeCard
-                      key={postData.id}
-                      post={postData}
-                      mode="profile"
-                      onToggleFollow={() => handleToggleFollow(postData)}
-                      onToggleLike={() => handleToggleLike(postData)}
-                      onSave={() => handleSavePost(postData)}
-                    />
-                  ))}
-                </section>
-              </div>
-            ) : (
-              // SAVED POSTS
-              <div className="fs-gallery-wrap">
-                <section className="fs-gallery" aria-label="Saved posts">
-                  {savedPosts.length > 0 ? (
-                    savedPosts.map((postData) => (
-                      <HomeCard
-                        key={postData.id}
-                        post={postData}
-                        mode="profile"
-                        onToggleFollow={() => handleToggleFollow(postData)}
-                        onToggleLike={() => handleToggleLike(postData)}
-                        onSave={() => handleSavePost(postData)}
-                      />
-                    ))
-                  ) : (
-                    <p>No saved posts yet</p>
-                  )}
-                </section>
-              </div>
-            )}
+{mode === "posts" ? (
+  <div className="fs-gallery-wrap">
+    <section className="fs-gallery" aria-label="Posts gallery">
+      {isLoadingPosts ? (
+        <div style={{ padding: 24 }}>Loading posts…</div>
+      ) : userPosts.length > 0 ? (
+        userPosts.map((postData) => (
+          <div key={postData.id} className="fs-gallery-item">
+            <HomeCard
+              post={postData}
+              mode="profile"
+              onToggleFollow={() => handleToggleFollow(postData)}
+              onToggleLike={() => handleToggleLike(postData)}
+              onSave={() => handleSavePost(postData)}
+            />
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: 24 }}>No posts yet — try uploading one!</div>
+      )}
+    </section>
+  </div>
+) : (
+  // SAVED POSTS
+  <div className="fs-gallery-wrap">
+    <section className="fs-gallery" aria-label="Saved posts">
+      {savedPosts.length > 0 ? (
+        savedPosts.map((postData) => (
+          <div key={postData.id} className="fs-gallery-item">
+            <HomeCard
+              post={postData}
+              mode="profile"
+              onToggleFollow={() => handleToggleFollow(postData)}
+              onToggleLike={() => handleToggleLike(postData)}
+              onSave={() => handleSavePost(postData)}
+            />
+          </div>
+        ))
+      ) : (
+        <p style={{ padding: 24 }}>No saved posts yet</p>
+      )}
+    </section>
+  </div>
+)}
+
           </main>
         </div>
       </div>
@@ -235,7 +289,7 @@ export default function Profile() {
       {/* EditProfile modal */}
       {isEditing && (
         <EditProfile
-          currentData={user}
+          currentData={profile}
           onCancel={() => setIsEditing(false)}
           onSave={handleSave}
         />
