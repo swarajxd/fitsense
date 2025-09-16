@@ -1,59 +1,65 @@
+// src/pages/Home.jsx
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import Header from "../components/header";
 import HomeCard from "../components/HomeCard";
 import "./Home.css";
 import { Link } from "react-router-dom";
-import Discover from "./Discover"
-import { motion } from "framer-motion"; // 👈 add this at the top
-
-
-const makePosts = (count = 20) =>
-  Array.from({ length: count }, (_, i) => ({
-    id: i + 1,
-    image: `/img${(i % 12) + 1}.jpg`,
-    author: `user${i + 1}`,
-    avatar: `/pfp${(i % 6) + 1}.jpg`,
-    isFollowing: i % 3 === 0,
-    liked: false,
-  }));
+import Discover from "./Discover";
+import { motion } from "framer-motion";
+import { useUser } from '@clerk/clerk-react';
 
 export default function Home() {
-  const [posts, setPosts] = useState(() => makePosts(24));
-  const [mode, setMode] = useState("forYou"); // <- default back to "forYou"
+  const [posts, setPosts] = useState([]);
+  const [mode, setMode] = useState("forYou");
   const masonryRef = useRef(null);
+  const { user } = useUser();
 
-  const visiblePosts = useMemo(() => {
-    if (mode === "following") return posts.filter((p) => p.isFollowing);
-    return posts;
-  }, [mode, posts]);
+  const [loading, setLoading] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const LIMIT = 24;
 
-  function toggleFollow(id) {
-    setPosts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isFollowing: !p.isFollowing } : p))
-    );
-  }
-
-  function toggleLike(id) {
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, liked: !p.liked } : p)));
-  }
-
-  async function handleShare(post) {
-    const url = `${window.location.origin}/post/${post.id}`;
-    if (navigator.share) {
+  // Load feed whenever mode, user (for following), or offset changes
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchFeed() {
+      setLoading(true);
       try {
-        await navigator.share({ title: `Post by ${post.author}`, url });
-      } catch (err) {}
-    } else {
-      try {
-        await navigator.clipboard.writeText(url);
-        alert("Post link copied to clipboard!");
-      } catch {
-        alert("Couldn't copy link. URL: " + url);
+       const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:7000';
+          const endpoint = mode === 'forYou' ? '/api/posts/feed' : '/api/posts/following';
+          const url = new URL(base + endpoint);
+
+          url.searchParams.set('limit', LIMIT);
+          url.searchParams.set('offset', offset || 0);
+
+          // ✅ Add userId for both modes
+          if (mode === 'forYou' && user?.id) {
+            url.searchParams.set('userId', user.id); // exclude own posts
+          }
+          if (mode === 'following' && user?.id) {
+            url.searchParams.set('userId', user.id); // fetch followees
+}
+ 
+        const resp = await fetch(url.toString());
+        const json = await resp.json();
+        if (!resp.ok) {
+          console.error('Failed to fetch feed', json);
+          return;
+        }
+        if (cancelled) return;
+        // If offset is 0, replace; otherwise append (simple "load more")
+        setPosts(prev => (offset ? [...prev, ...(json.posts || [])] : (json.posts || [])));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
-  }
 
-  // Masonry: compute grid-row-end span for variable image heights.
+    fetchFeed();
+    return () => { cancelled = true; };
+  }, [mode, user?.id, offset]);
+
+  // Masonry layout recalculation (reuse your logic)
   useEffect(() => {
     const container = masonryRef.current;
     if (!container) return;
@@ -61,10 +67,8 @@ export default function Home() {
     const resizeItem = (item) => {
       const img = item.querySelector("img");
       if (!img) return;
-      // grid-auto-rows value
       const style = window.getComputedStyle(container);
       const rowHeightPx = parseInt(style.getPropertyValue("grid-auto-rows")) || 10;
-      // gap could be '16px'
       const gapPx = parseInt(style.getPropertyValue("gap")) || parseInt(style.getPropertyValue("grid-row-gap")) || 16;
       const imgHeight = img.getBoundingClientRect().height;
       const rowSpan = Math.max(1, Math.ceil((imgHeight + gapPx) / (rowHeightPx + gapPx)));
@@ -76,11 +80,9 @@ export default function Home() {
       items.forEach((it) => resizeItem(it));
     };
 
-    // handle images loaded
     const imgs = Array.from(container.querySelectorAll("img"));
     imgs.forEach((img) => {
       if (img.complete) {
-        // already loaded
         const item = img.closest(".masonry-item");
         if (item) resizeItem(item);
       } else {
@@ -91,34 +93,37 @@ export default function Home() {
       }
     });
 
-    // on window resize, recalc
     window.addEventListener("resize", resizeAll);
-    // small timeout to allow DOM to paint then calculate
     const t = setTimeout(resizeAll, 50);
 
     return () => {
       window.removeEventListener("resize", resizeAll);
       clearTimeout(t);
     };
-  }, [visiblePosts]); // recalc whenever visible posts change
+  }, [posts]); // recalc whenever posts change
+
+  function toggleLike(id) {
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, liked: !p.liked } : p));
+  }
+
+  function toggleFollow(id) {
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, isFollowing: !p.isFollowing } : p));
+  }
+
+  async function loadMore() {
+    setOffset(prev => prev + LIMIT);
+  }
 
   return (
     <>
       <Header />
-
       <div className="home-top-row">
         <div className="home-toggle">
-          <button
-            className={`mode-btn ${mode === "following" ? "active" : ""}`}
-            onClick={() => setMode("following")}
-          >
+          <button className={`mode-btn ${mode === "following" ? "active" : ""}`} onClick={() => { setMode('following'); setOffset(0); }}>
             Following
           </button>
 
-          <button
-            className={`mode-btn ${mode === "forYou" ? "active" : ""}`}
-            onClick={() => setMode("forYou")}
-          >
+          <button className={`mode-btn ${mode === "forYou" ? "active" : ""}`} onClick={() => { setMode('forYou'); setOffset(0); }}>
             For you
           </button>
         </div>
@@ -126,33 +131,42 @@ export default function Home() {
 
       <main className="home-container">
         <div className="masonry" ref={masonryRef}>
-          {visiblePosts.length === 0 ? (
-  <div className="empty-msg">No posts to show. Try switching to "For you".</div>
-) : (
-  visiblePosts.map((post, index) => (
-    <motion.div
-      className="masonry-item"
-      key={post.id}
-      initial={{ opacity: 0, y: 0 }}   // start hidden and slightly down
-      animate={{ opacity: 1, y: 0 }}     // fade in + slide up
-      transition={{
-        duration: 0.2,
-        delay: index * 0.1,              // stagger each card
-        ease: "easeOut",
-      }}
-    >
-      <HomeCard
-        post={post}
-        mode={mode}
-        onToggleFollow={() => toggleFollow(post.id)}
-        onToggleLike={() => toggleLike(post.id)}
-        onShare={() => handleShare(post)}
-      />
-    </motion.div>
-  ))
-)}
+          {posts.length === 0 && !loading ? (
+            <div className="empty-msg">No posts to show.</div>
+          ) : (
+            posts.map((post, index) => (
+              <motion.div
+                key={post.id}
+                className="masonry-item"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: index * 0.02 }}
+              >
+                <HomeCard
+                  post={{
+                    id: post.id,
+                    image: post.image_url || post.image_path,
+                    author: post.author || post.user_id || 'user',
+                    avatar: post.avatar || null,
+                    isFollowing: post.is_following || false,
+                    liked: post.liked || false,
+                    caption: post.caption || '',
+                    raw: post
+                  }}
+                  mode={mode}
+                  onToggleFollow={() => toggleFollow(post.id)}
+                  onToggleLike={() => toggleLike(post.id)}
+                />
+              </motion.div>
+            ))
+          )}
         </div>
-<Discover />
+
+        <div style={{ textAlign: 'center', margin: '20px 0' }}>
+          {loading ? <button className="btn">Loading…</button> : <button className="btn" onClick={loadMore}>Load more</button>}
+        </div>
+
+        <Discover />
         <Link to="/create" className="upload-button" title="Create">+</Link>
       </main>
     </>

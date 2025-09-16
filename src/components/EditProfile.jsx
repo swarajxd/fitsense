@@ -1,11 +1,26 @@
-// EditProfile.jsx (drop-in replacement)
+// src/components/EditProfile.jsx
 import React, { useEffect, useState } from "react";
+import { useUser, useAuth } from "@clerk/clerk-react";
 
+/**
+ * EditProfile
+ * - uploads avatar to your backend endpoint (/api/uploads/avatar)
+ * - saves profile to backend (/api/profile) and includes userId
+ *
+ * Expects parent to pass currentData and callbacks:
+ *  - currentData: { name, bio, profilePic, username, public_id, user_id? }
+ *  - onSave(updatedProfile)
+ *  - onCancel()
+ */
 export default function EditProfile({ currentData = {}, onSave, onCancel }) {
+  const { user } = useUser();
+  const { getToken } = useAuth();
+
   const [form, setForm] = useState({
     name: "",
     bio: "",
-    profilePic: ""
+    profilePic: "",
+    username: ""
   });
   const [preview, setPreview] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -15,141 +30,155 @@ export default function EditProfile({ currentData = {}, onSave, onCancel }) {
     setForm({
       name: currentData.name || "",
       bio: currentData.bio || "",
-      profilePic: currentData.profilePic || ""
+      profilePic: currentData.profilePic || "",
+      username: currentData.username || ""
     });
     setPreview(currentData.profilePic || "");
   }, [currentData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm((p) => ({ ...p, [name]: value }));
   };
 
-  // Upload file to backend (Cloudinary) and return { url, public_id } or throw
-  // EditProfile.jsx — replace uploadFileToServer with this
-const uploadFileToServer = async (file) => {
-  const fd = new FormData();
-  fd.append("file", file);
+  // Upload to your server which uploads to Cloudinary and returns { url, public_id, ... }
+  const uploadFileToServer = async (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
 
-  // use full backend URL if you didn't add a proxy:
-  const res = await fetch("http://localhost:7000/api/uploads/avatar", {
-    method: "POST",
-    body: fd
-  });
-
-  // parse body safely
-  let body;
-  try {
-    body = await res.json();
-  } catch (err) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Upload failed: ${txt || "server returned non-json"}`);
-  }
-
-  console.log("Upload response:", body);
-
-  // Accept two possible shapes:
-  // 1) { ok: true, url, public_id } OR 2) { url, public_id, width, ... }
-  if (!res.ok) {
-    const msg = body?.error || body?.details || JSON.stringify(body);
-    throw new Error(msg || `HTTP ${res.status}`);
-  }
-
-  if (!body.url) {
-    throw new Error(`Upload succeeded but no url returned: ${JSON.stringify(body)}`);
-  }
-
-  // return the body to the caller
-  return body;
-};
-
-
-  // Save profile payload to server (profile.json route). Adjust if you use other endpoint.
-  const saveProfileToServer = async (payload) => {
-    const res = await fetch("/api/profile", {
+    const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:7000";
+    const res = await fetch(`${base}/api/uploads/avatar`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: fd
     });
-    if (!res.ok) {
+
+    let body;
+    try {
+      body = await res.json();
+    } catch (err) {
       const txt = await res.text().catch(() => "");
-      throw new Error(`Profile save failed: ${txt || res.status}`);
+      throw new Error(`Upload failed: ${txt || "server returned non-json"}`);
     }
-    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const msg = body?.error || body?.details || JSON.stringify(body);
+      throw new Error(msg || `HTTP ${res.status}`);
+    }
+
+    if (!body.url) {
+      throw new Error(`Upload succeeded but no url returned: ${JSON.stringify(body)}`);
+    }
+    return body;
+  };
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
+
+    try {
+      setUploading(true);
+      const uploadResp = await uploadFileToServer(file);
+      const cloudUrl = uploadResp.url;
+      setForm((p) => ({
+        ...p,
+        profilePic: cloudUrl,
+        // keep public_id if returned
+        public_id: uploadResp.public_id || p.public_id
+      }));
+      setPreview(cloudUrl);
+      console.log("Uploaded to Cloudinary:", cloudUrl);
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Upload failed: " + (err.message || err));
+    } finally {
+      setUploading(false);
+      try { URL.revokeObjectURL(objectUrl); } catch {}
+    }
+  };
+
+  // Save profile to your server (includes userId)
+  const saveProfileToServer = async (payload) => {
+    const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:7000";
+
+    let token = null;
+    try {
+      token = await getToken();
+    } catch (e) {
+      // token optional: server uses service role; keeping token is good if server verifies
+      console.warn("No token available", e);
+    }
+
+    const body = {
+      userId: user?.id, // IMPORTANT: Clerk user id included
+      name: payload.name,
+      username: payload.username,
+      bio: payload.bio,
+      profilePic: payload.profilePic,
+      public_id: payload.public_id ?? null
+    };
+
+    const res = await fetch(`${base}/api/profile`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(body)
+    });
+
+    const text = await res.text().catch(() => "");
+    let json = {};
+    try { json = text ? JSON.parse(text) : {}; } catch (e) { json = { text }; }
+
+    if (!res.ok) {
+      const errMsg = json?.error || json?.message || text || `HTTP ${res.status}`;
+      throw new Error(errMsg);
+    }
     return json;
   };
 
-  // EditProfile.jsx — replace handleFile with this
-const handleFile = async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-
-  // show quick local preview
-  const objectUrl = URL.createObjectURL(file);
-  setPreview(objectUrl);
-
-  try {
-    setUploading(true);
-    const uploadResp = await uploadFileToServer(file);
-    // uploadResp.url exists per your server response
-    const cloudUrl = uploadResp.url;
-    setForm(prev => ({ ...prev, profilePic: cloudUrl }));
-    setPreview(cloudUrl);
-
-    // optionally store public_id if you want to delete/replace later
-    setForm(prev => ({ ...prev, public_id: uploadResp.public_id || prev.public_id }));
-    console.log("Uploaded to Cloudinary:", cloudUrl);
-  } catch (err) {
-    console.error("Upload error:", err);
-    alert("Upload failed: " + (err.message || err));
-  } finally {
-    setUploading(false);
-    try { URL.revokeObjectURL(objectUrl); } catch {}
-  }
-};
-
-
-  // Submit handler: ensure async flow finishes before calling onSave
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!user) {
+      alert("You must be signed in to save your profile.");
+      return;
+    }
+
     try {
       setSaving(true);
 
-      // Build payload merging currentData with new form values (protects missing keys)
       const payload = {
         ...currentData,
         name: form.name,
         bio: form.bio,
-        profilePic: form.profilePic
+        profilePic: form.profilePic,
+        username: form.username || currentData.username || user?.username || user?.id,
+        public_id: currentData.public_id ?? null
       };
 
-      // Persist server-side (optional). If you don't have /api/profile, skip this or save to localStorage.
-      try {
-        await saveProfileToServer({
-          name: payload.name,
-          bio: payload.bio,
-          avatar_url: payload.profilePic,
-          public_id: currentData.public_id || null // optional
-        });
-      } catch (err) {
-        // If server save fails but you still want to update UI locally, you can choose to continue.
-        // For now we rethrow to stop and show error.
-        throw err;
-      }
+      // persist to server
+      const saved = await saveProfileToServer(payload);
 
-      // Notify parent with the full payload (parent merges and closes modal)
+      // If server returned saved profile row, prefer that
+      const returnedProfile = saved?.profile ?? saved ?? payload;
+
+      // notify parent
       if (typeof onSave === "function") {
         onSave({
-          name: payload.name,
-          bio: payload.bio,
-          profilePic: payload.profilePic,
-          // keep username if present
-          username: payload.username ?? currentData.username
+          name: returnedProfile.name ?? payload.name,
+          bio: returnedProfile.bio ?? payload.bio,
+          profilePic: returnedProfile.avatar_url ?? returnedProfile.profilePic ?? payload.profilePic,
+          username: returnedProfile.username ?? payload.username,
+          public_id: returnedProfile.public_id ?? payload.public_id,
+          user_id: returnedProfile.user_id ?? user?.id
         });
       }
     } catch (err) {
       console.error("Save failed:", err);
-      alert("Save failed: " + err.message);
+      alert("Save failed: " + (err.message || err));
     } finally {
       setSaving(false);
     }
@@ -166,6 +195,11 @@ const handleFile = async (e) => {
           </label>
 
           <label style={styles.field}>
+            <div style={styles.label}>Username</div>
+            <input name="username" value={form.username} onChange={handleChange} style={styles.input} />
+          </label>
+
+          <label style={styles.field}>
             <div style={styles.label}>Bio</div>
             <textarea name="bio" value={form.bio} onChange={handleChange} style={{ ...styles.input, minHeight: 80 }} />
           </label>
@@ -174,12 +208,18 @@ const handleFile = async (e) => {
             <div style={styles.label}>Profile photo</div>
             <input type="file" accept="image/*" onChange={handleFile} />
             <div style={{ marginTop: 8 }}>
-              {uploading ? <div>Uploading…</div> : preview ? <img src={preview} alt="preview" style={styles.previewImg} /> : <div style={styles.placeholder}>No photo</div>}
+              {uploading ? (
+                <div>Uploading…</div>
+              ) : preview ? (
+                <img src={preview} alt="preview" style={styles.previewImg} />
+              ) : (
+                <div style={styles.placeholder}>No photo</div>
+              )}
             </div>
           </label>
 
           <div style={styles.actions}>
-            <button type="button" onClick={() => { if (onCancel) onCancel(); }} style={styles.ghostBtn} disabled={saving || uploading}>Cancel</button>
+            <button type="button" onClick={() => onCancel && onCancel()} style={styles.ghostBtn} disabled={saving || uploading}>Cancel</button>
             <button type="submit" style={styles.primaryBtn} disabled={saving || uploading}>{saving ? "Saving…" : "Save"}</button>
           </div>
         </form>
@@ -188,7 +228,6 @@ const handleFile = async (e) => {
   );
 }
 
-// inline styles — copy your preferred styles if you already have them
 const styles = {
   backdrop: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50 },
   modal: { background: "#fff", color: "#000", padding: 20, borderRadius: 8, width: 520, maxWidth: "95%" },

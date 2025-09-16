@@ -10,7 +10,6 @@ const app = express();
 const PORT = process.env.PORT || 7000;
 /*upload posts*/
 
-
 /* ---------- Middleware ---------- */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // parse JSON and form bodies (Pusher may send urlencoded)
@@ -24,6 +23,10 @@ const uploadRoutes = require("./routes/upload");
 app.use("/api/uploads", uploadRoutes);
 const profileRoutes = require("./routes/profile");
 app.use("/api/profile", profileRoutes);
+// server/index.js (add)
+const feedRouter = require('./routes/feed');
+app.use('/api/posts', feedRouter);
+
 
 /* ---------- Optional Clerk server SDK (only used if CLERK_API_KEY provided) ---------- */
 let clerkClient = null;
