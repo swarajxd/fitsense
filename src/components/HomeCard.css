@@ -11,6 +11,7 @@
   overflow: hidden;
   background: #000;
   transition: transform 200ms ease, filter 200ms ease;
+  margin-top: 20px;
 }
 
 .img-wrap:hover { transform: translateY(-6px) scale(1.01); filter: brightness(0.98); }

@@ -5,28 +5,70 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+
 const postsRouter = require('./routes/posts');
 const app = express();
 const PORT = process.env.PORT || 7000;
+
 /*upload posts*/
 
 /* ---------- Middleware ---------- */
+// right after your requires/imports
+console.log('require postsRouter =>', require('./routes/posts'));
+console.log('cors type =>', typeof require('cors'));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // parse JSON and form bodies (Pusher may send urlencoded)
 app.use(cors());
-app.use('/api/posts', postsRouter);
-app.get('/health', (req, res) => res.json({ ok: true }));
 
-app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
+/* --- helper to safely mount routers --- */
+function safeMount(mountPath, moduleOrName) {
+  // moduleOrName may be a module value (router) or a string path
+  let mod = moduleOrName;
+  if (typeof moduleOrName === 'string') {
+    try {
+      mod = require(moduleOrName);
+    } catch (err) {
+      console.warn(`safeMount: require failed for '${moduleOrName}': ${err && err.code ? err.code : err.message}`);
+      return;
+    }
+  }
+
+  if (!mod) {
+    console.warn(`safeMount: module for '${mountPath}' is falsy — skipping mount.`);
+    return;
+  }
+
+  // prefer default export if present (interop ESM)
+  if (mod && mod.default) mod = mod.default;
+
+  const isFunction = typeof mod === 'function';
+  const looksLikeRouter = mod && (typeof mod.use === 'function' || typeof mod.handle === 'function');
+
+  console.log(`safeMount: mounting ${mountPath} => type: ${typeof mod}${ looksLikeRouter ? ' (looks like router)' : '' }`);
+
+  if (isFunction || looksLikeRouter) {
+    try {
+      app.use(mountPath, mod);
+      console.log(`Mounted ${mountPath}`);
+    } catch (err) {
+      console.error(`Failed to mount ${mountPath}:`, err && err.message);
+    }
+  } else {
+    console.warn(`Module for ${mountPath} is not a router/middleware (type: ${typeof mod}). Skipping mount.`);
+  }
+}
+
+/* mount posts router (you already required postsRouter) */
+safeMount('/api/posts', postsRouter);
+
 /* ---------- Existing routes (Cloudinary / uploads / profile) ---------- */
-const uploadRoutes = require("./routes/upload");
-app.use("/api/uploads", uploadRoutes);
-const profileRoutes = require("./routes/profile");
-app.use("/api/profile", profileRoutes);
-// server/index.js (add)
-const feedRouter = require('./routes/feed');
-app.use('/api/posts', feedRouter);
+safeMount('/api/uploads', './routes/upload');
+safeMount('/api/profile', './routes/profile');
 
+/* server/index.js (add) */
+safeMount('/api/posts', './routes/feed'); // NOTE: mounts feed at same base; keep if feed router is intended
+safeMount('/api/interactions', './routes/interactions');
 
 /* ---------- Optional Clerk server SDK (only used if CLERK_API_KEY provided) ---------- */
 let clerkClient = null;

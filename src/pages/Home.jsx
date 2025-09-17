@@ -13,11 +13,13 @@ export default function Home() {
   const [mode, setMode] = useState("forYou");
   const masonryRef = useRef(null);
   const { user } = useUser();
+const [refreshKey, setRefreshKey] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [offset, setOffset] = useState(0);
   const LIMIT = 24;
-
+  
+  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:7000';
   // Load feed whenever mode, user (for following), or offset changes
   useEffect(() => {
     let cancelled = false;
@@ -57,7 +59,8 @@ export default function Home() {
 
     fetchFeed();
     return () => { cancelled = true; };
-  }, [mode, user?.id, offset]);
+  }, [mode, user?.id, offset, refreshKey]);
+
 
   // Masonry layout recalculation (reuse your logic)
   useEffect(() => {
@@ -106,9 +109,64 @@ export default function Home() {
     setPosts(prev => prev.map(p => p.id === id ? { ...p, liked: !p.liked } : p));
   }
 
-  function toggleFollow(id) {
-    setPosts(prev => prev.map(p => p.id === id ? { ...p, isFollowing: !p.isFollowing } : p));
+// Replace your existing toggleFollow(...) with this function
+async function toggleFollow(userId) {
+  // userId = post.user_id (author's id)
+  try {
+    const currentlyFollowing = posts.find(p => p.user_id === userId)?.isFollowing || false;
+
+    // optimistic UI flip
+    setPosts(prev => prev.map(p => p.user_id === userId ? { ...p, isFollowing: !p.isFollowing } : p));
+
+    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:7000';
+
+    if (currentlyFollowing) {
+      // Try DELETE with query params (more robust than DELETE with JSON body)
+      const url = `${base}/api/interactions/follow?followerId=${encodeURIComponent(user?.id)}&followeeId=${encodeURIComponent(userId)}`;
+      const res = await fetch(url, { method: 'DELETE' });
+
+      if (!res.ok) {
+        // fallback: try sending POST to an /unfollow endpoint if your server exposes it
+        console.warn('DELETE unfollow returned non-ok, trying fallback POST /api/interactions/unfollow');
+        const fallback = await fetch(`${base}/api/interactions/unfollow`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ followerId: user?.id, followeeId: userId })
+        });
+        if (!fallback.ok) throw new Error(`Fallback unfollow failed: ${fallback.status}`);
+      } else {
+        console.log('[UNFOLLOW] success (DELETE query)', { followerId: user?.id, followeeId: userId });
+      }
+    } else {
+      // Follow (POST body is reliable)
+      const res = await fetch(`${base}/api/interactions/follow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ followerId: user?.id, followeeId: userId })
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Follow failed: ${res.status} ${txt}`);
+      }
+      console.log('[FOLLOW] success', { followerId: user?.id, followeeId: userId });
+    }
+
+    // Force re-fetch when user is viewing the "Following" tab
+if (mode === 'following') {
+  // bump refresh key to force useEffect to run even if offset is already 0
+  setRefreshKey(k => k + 1);
+  // also reset offset so pagination stays consistent
+  setOffset(0);
+}
+
+  } catch (err) {
+    console.error('toggleFollow error', err);
+    // revert optimistic change by reloading feed data; fallback:
+    window.location.reload();
   }
+}
+
+
 
   async function loadMore() {
     setOffset(prev => prev + LIMIT);
@@ -148,13 +206,15 @@ export default function Home() {
                     image: post.image_url || post.image_path,
                     author: post.author || post.user_id || 'user',
                     avatar: post.avatar || null,
-                    isFollowing: post.is_following || false,
+                    isFollowing: post.isFollowing || false,
                     liked: post.liked || false,
                     caption: post.caption || '',
                     raw: post
                   }}
                   mode={mode}
-                  onToggleFollow={() => toggleFollow(post.id)}
+                    onToggleFollow={() => toggleFollow(post.user_id)}
+                    
+
                   onToggleLike={() => toggleLike(post.id)}
                 />
               </motion.div>
