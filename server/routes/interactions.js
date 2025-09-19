@@ -184,32 +184,69 @@ router.post('/unlike', async (req, res) => {
 });
 
 
-// save
-router.post("/save", async (req, res) => {
-  const { userId, postId } = req.body;
-  if (!userId || !postId) return errRes(res, 'Missing IDs', 400);
+// POST /api/interactions/save
+router.post('/save', async (req, res) => {
   try {
-    const { error } = await supabaseAdmin.from("saves").upsert({ user_id: userId, post_id: postId });
-    if (error) throw error;
-    res.json({ ok: true });
+    const { userId, postId } = req.body ?? {};
+    if (!userId || !postId) return res.status(400).json({ error: 'Missing userId or postId' });
+
+    // prevent duplicate
+    const { data: existing, error: selErr } = await supabaseAdmin
+      .from('saves')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('post_id', postId)
+      .limit(1);
+    if (selErr) throw selErr;
+
+    if (!existing || existing.length === 0) {
+      const { error: insertErr } = await supabaseAdmin
+        .from('saves')
+        .insert({ user_id: userId, post_id: postId });
+      if (insertErr) throw insertErr;
+    }
+
+    const { data: rows, error: cntErr, count } = await supabaseAdmin
+      .from('saves')
+      .select('*', { count: 'exact' })
+      .eq('post_id', postId);
+
+    if (cntErr) throw cntErr;
+
+    return res.json({ ok: true, saved: true, saves_count: count ?? (rows?.length ?? 0) });
   } catch (err) {
-    console.error("Save error:", err);
-    res.status(500).json({ error: "Save failed" });
+    console.error('[SAVE] error', err);
+    return res.status(500).json({ error: 'Save failed', details: err.message });
   }
 });
 
-// unsave
-router.post("/unsave", async (req, res) => {
-  const { userId, postId } = req.body;
-  if (!userId || !postId) return errRes(res, 'Missing IDs', 400);
+// POST /api/interactions/unsave
+router.post('/unsave', async (req, res) => {
   try {
-    const { error } = await supabaseAdmin.from("saves").delete().eq("user_id", userId).eq("post_id", postId);
-    if (error) throw error;
-    res.json({ ok: true });
+    const { userId, postId } = req.body ?? {};
+    if (!userId || !postId) return res.status(400).json({ error: 'Missing userId or postId' });
+
+    const { error: delErr } = await supabaseAdmin
+      .from('saves')
+      .delete()
+      .eq('user_id', userId)
+      .eq('post_id', postId);
+
+    if (delErr) throw delErr;
+
+    const { data: rows, error: cntErr, count } = await supabaseAdmin
+      .from('saves')
+      .select('*', { count: 'exact' })
+      .eq('post_id', postId);
+
+    if (cntErr) throw cntErr;
+
+    return res.json({ ok: true, saved: false, saves_count: count ?? (rows?.length ?? 0) });
   } catch (err) {
-    console.error("Unsave error:", err);
-    res.status(500).json({ error: "Unsave failed" });
+    console.error('[UNSAVE] error', err);
+    return res.status(500).json({ error: 'Unsave failed', details: err.message });
   }
 });
+
 
 module.exports = router;

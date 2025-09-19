@@ -37,9 +37,12 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
 
   const [mode, setMode] = useState("posts");
+  const [savedPosts, setSavedPosts] = useState([]);
+const [isLoadingSaved, setIsLoadingSaved] = useState(true);
+
   const [posts, setPosts] = useState([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
-
+  
   // Fetch profile on mount (only after Clerk user is available)
   useEffect(() => {
     if (!user) return;
@@ -151,6 +154,34 @@ export default function Profile() {
     // intentionally only depend on user; we'll patch authors when profile becomes available
   }, [user]);
 
+  // Fetch posts saved by current user
+useEffect(() => {
+  if (!user) {
+    setIsLoadingSaved(false);
+    return;
+  }
+  let cancelled = false;
+
+  (async () => {
+    setIsLoadingSaved(true);
+    try {
+      const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:7000";
+      const resp = await fetch(`${base}/api/profile/saved?userId=${encodeURIComponent(user.id)}`);
+      if (!resp.ok) throw new Error("Failed to fetch saved posts");
+      const json = await resp.json();
+      if (!cancelled) setSavedPosts(json.posts || []);
+    } catch (err) {
+      console.error("Error fetching saved posts:", err);
+      if (!cancelled) setSavedPosts([]);
+    } finally {
+      if (!cancelled) setIsLoadingSaved(false);
+    }
+  })();
+
+  return () => { cancelled = true; };
+}, [user]);
+
+
   // Patch posts' author field once profile becomes available (handles race conditions)
   useEffect(() => {
     if (!profile || !posts || posts.length === 0) return;
@@ -259,7 +290,6 @@ export default function Profile() {
     if (post.raw && post.raw.user_id) return post.raw.user_id === user.id;
     return post.author === profile.username;
   });
-  const savedPosts = posts.filter((post) => post.isSaved);
 
   return (
     <>
@@ -325,6 +355,7 @@ export default function Profile() {
                   >
                     Saved ({savedPosts.length})
                   </button>
+
                 </div>
               </div>
             </div>
@@ -356,7 +387,9 @@ export default function Profile() {
               // SAVED POSTS
               <div className="fs-gallery-wrap">
                 <section className="fs-gallery" aria-label="Saved posts">
-                  {savedPosts.length > 0 ? (
+                  {isLoadingSaved ? (
+                    <div style={{ padding: 24 }}>Loading saved posts…</div>
+                  ) : savedPosts.length > 0 ? (
                     savedPosts.map((postData) => (
                       <div key={postData.id} className="fs-gallery-item">
                         <HomeCard
@@ -373,6 +406,7 @@ export default function Profile() {
                   )}
                 </section>
               </div>
+
             )}
           </main>
         </div>

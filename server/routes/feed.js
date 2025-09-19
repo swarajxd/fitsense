@@ -99,6 +99,31 @@ router.get('/feed', async (req, res) => {
       if (userId && l.user_id === userId) likedByViewer.add(l.post_id);
     }
 
+    //saved button
+    // gather saves for the returned posts
+      let savesRows = [];
+      if (postIds.length) {
+        const { data: srows, error: serr } = await supabaseAdmin
+          .from('saves')
+          .select('post_id, user_id')
+          .in('post_id', postIds);
+
+        if (serr) {
+          console.warn('[FEED] could not fetch saves', serr);
+        } else {
+          savesRows = srows || [];
+        }
+      }
+
+      // build save sets
+      const savesCount = {};
+      const savedByViewer = new Set();
+      for (const s of savesRows) {
+        savesCount[s.post_id] = (savesCount[s.post_id] || 0) + 1;
+        if (userId && s.user_id === userId) savedByViewer.add(s.post_id);
+      }
+
+
 
     // Map rows to output shape
     const mapped = await Promise.all((rows || []).map(async row => {
@@ -118,6 +143,7 @@ router.get('/feed', async (req, res) => {
         isFollowing: userId ? followeeIds.includes(row.user_id) : false,
         likes: counts[row.id] || 0,
         liked: likedByViewer.has(row.id),
+        saved: savedByViewer.has(row.id),   // boolean for current viewer
 
         raw: row
       };

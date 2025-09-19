@@ -31,6 +31,10 @@ export default function HomeCard({
     // optional debug:
     // console.log('[HomeCard] sync liked prop->local', { postId: post?.id, liked: post?.liked });
   }, [post.liked, post.id]);
+  // Keep local saved in sync with parent prop
+useEffect(() => {
+  setSaved(Boolean(post.saved || post.isSaved));
+}, [post.saved, post.isSaved, post.id]);
 
 
   const followLabel = mode === "following" ? "Unfollow" : "Follow";
@@ -147,19 +151,33 @@ const handleLike = async (e) => {
 };
 
 
-  const handleSave = async (e) => {
-    e?.stopPropagation?.();
-    if (!user) { alert("Please sign in to save posts."); return; }
-    const endpoint = saved ? "/api/interactions/unsave" : "/api/interactions/save";
-    setSaved((s) => !s);
-    try {
-      await postJson(endpoint, { userId: user.id, postId: post.id });
-    } catch (err) {
-      console.error("Save error", err);
-      setSaved((s) => !s);
-      alert("Could not update saved state: " + err.message);
-    }
-  };
+const handleSave = async (e) => {
+  e?.stopPropagation?.();
+  if (!user) { alert("Please sign in to save posts."); return; }
+
+  const endpoint = saved ? "/api/interactions/unsave" : "/api/interactions/save";
+
+  // optimistic flip
+  setSaved(s => !s);
+
+  try {
+    const res = await postJson(endpoint, { userId: user.id, postId: post.id });
+    const newSaved = (res && typeof res.saved === 'boolean') ? res.saved : !saved;
+    const newCount = (res && typeof res.saves_count === 'number') ? res.saves_count : null;
+
+    // inform parent (implement onToggleSave in parent)
+    try { onToggleSave(post, newSaved, newCount); } catch (e) { /* ignore */ }
+
+    // ensure local state matches authoritative returned value
+    setSaved(Boolean(newSaved));
+  } catch (err) {
+    console.error("Save error", err);
+    // rollback
+    setSaved(s => !s);
+    alert("Could not update saved state: " + (err?.message || err));
+  }
+};
+
 
   return (
     <article
@@ -196,7 +214,7 @@ const handleLike = async (e) => {
               <button
                 type="button"
                 className={`menu-item ${saved ? "saved" : ""}`}
-                onClick={() => { setSaved((s) => !s); setMenuOpen(false); }}
+                onClick={(e) => { handleSave(e); setMenuOpen(false); }}
                 role="menuitem"
               >
                 {saved ? <><FaBookmark className="menu-item-icon" /><span>Saved</span></> :

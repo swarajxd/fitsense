@@ -182,6 +182,16 @@ if (mode === 'following') {
     window.location.reload();
   }
 }
+function toggleSave(postOrId, newSaved, newCount) {
+  const postId = typeof postOrId === 'object' ? postOrId.id : postOrId;
+
+  setPosts(prev => prev.map(p => {
+    if (p.id !== postId) return p;
+    const prevSaves = (typeof p.saves === 'number') ? p.saves : (p.raw?.saves ?? p.saves ?? 0);
+    const saves = (typeof newCount === 'number') ? newCount : (newSaved ? prevSaves + 1 : Math.max(0, prevSaves - 1));
+    return { ...p, saved: !!newSaved, saves };
+  }));
+}
 
 
 
@@ -227,13 +237,19 @@ if (mode === 'following') {
                         liked: Boolean(post.liked),
                         likes: typeof post.likes === 'number' ? post.likes : (post.raw?.likes ?? 0),
                     caption: post.caption || '',
-                    raw: post
+                      saved: Boolean(post.saved),
+                      saves: typeof post.saves === 'number' ? post.saves : 0,
+                      raw: post
+
                   }}
                   mode={mode}
                     onToggleFollow={() => toggleFollow(post.user_id)}
                     
 
                     onToggleLike={(p, newLiked, newCount) => toggleLike(p, newLiked, newCount)}
+
+                    onToggleSave={(p, newSaved, newCount) => toggleSave(p, newSaved, newCount)}
+
                 />
               </motion.div>
             ))
