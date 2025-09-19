@@ -32,7 +32,7 @@ const [refreshKey, setRefreshKey] = useState(0);
 
           url.searchParams.set('limit', LIMIT);
           url.searchParams.set('offset', offset || 0);
-
+          
           // ✅ Add userId for both modes
           if (mode === 'forYou' && user?.id) {
             url.searchParams.set('userId', user.id); // exclude own posts
@@ -105,9 +105,26 @@ const [refreshKey, setRefreshKey] = useState(0);
     };
   }, [posts]); // recalc whenever posts change
 
-  function toggleLike(id) {
-    setPosts(prev => prev.map(p => p.id === id ? { ...p, liked: !p.liked } : p));
-  }
+function toggleLike(postOrId, newLiked, newCount) {
+  const postId = typeof postOrId === 'object' ? postOrId.id : postOrId;
+
+  setPosts(prev => prev.map(p => {
+    if (p.id !== postId) return p;
+
+    // pick authoritative likes count when available, otherwise compute a reasonable fallback
+    const prevLikes = (typeof p.likes === 'number') ? p.likes : (p.raw?.likes ?? p.likeCount ?? 0);
+    const likes = (typeof newCount === 'number')
+      ? newCount
+      : (newLiked ? (prevLikes + 1) : Math.max(0, prevLikes - 1));
+
+    return {
+      ...p,
+      liked: !!newLiked,
+      likes
+    };
+  }));
+}
+
 
 // Replace your existing toggleFollow(...) with this function
 async function toggleFollow(userId) {
@@ -207,7 +224,8 @@ if (mode === 'following') {
                     author: post.author || post.user_id || 'user',
                     avatar: post.avatar || null,
                     isFollowing: post.isFollowing || false,
-                    liked: post.liked || false,
+                        liked: Boolean(post.liked),
+                        likes: typeof post.likes === 'number' ? post.likes : (post.raw?.likes ?? 0),
                     caption: post.caption || '',
                     raw: post
                   }}
@@ -215,7 +233,7 @@ if (mode === 'following') {
                     onToggleFollow={() => toggleFollow(post.user_id)}
                     
 
-                  onToggleLike={() => toggleLike(post.id)}
+                    onToggleLike={(p, newLiked, newCount) => toggleLike(p, newLiked, newCount)}
                 />
               </motion.div>
             ))

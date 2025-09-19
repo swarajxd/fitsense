@@ -25,6 +25,13 @@ export default function HomeCard({
     // optional debug:
     // console.log('[HomeCard] sync prop->local', { user_id: post?.user_id, prop: post?.isFollowing });
   }, [post.isFollowing, post.user_id]);
+    // Keep local liked in sync with parent prop
+  useEffect(() => {
+    setLiked(Boolean(post.liked));
+    // optional debug:
+    // console.log('[HomeCard] sync liked prop->local', { postId: post?.id, liked: post?.liked });
+  }, [post.liked, post.id]);
+
 
   const followLabel = mode === "following" ? "Unfollow" : "Follow";
   const rawLikes = post.likes ?? post.likeCount ?? 0;
@@ -111,20 +118,34 @@ export default function HomeCard({
     }
   };
 
-  const handleLike = async (e) => {
-    e?.stopPropagation?.();
-    if (!user) { alert("Please sign in to like posts."); return; }
-    const endpoint = liked ? "/api/interactions/unlike" : "/api/interactions/like";
+// inside HomeCard.jsx - replace existing handleLike
+const handleLike = async (e) => {
+  e?.stopPropagation?.();
+  if (!user) { alert("Please sign in to like posts."); return; }
+
+  const endpoint = liked ? "/api/interactions/unlike" : "/api/interactions/like";
+
+  // optimistic local flip of the heart
+  setLiked((s) => !s);
+
+  try {
+    // read server response (should include likes_count and liked)
+    const res = await postJson(endpoint, { userId: user.id, postId: post.id });
+
+    // server response shape assumed: { ok: true, liked: boolean, likes_count: number }
+    const newCount = (res && typeof res.likes_count === 'number') ? res.likes_count : null;
+    const newLiked  = (res && typeof res.liked === 'boolean') ? res.liked : !liked;
+
+    // inform parent with authoritative info (parent will update posts state)
+    try { onToggleLike(post, newLiked, newCount); } catch (e) { /* ignore */ }
+  } catch (err) {
+    console.error("Like error", err);
+    // rollback optimistic flip
     setLiked((s) => !s);
-    try {
-      await postJson(endpoint, { userId: user.id, postId: post.id });
-      try { onToggleLike(post, !liked); } catch (e) { /* swallow */ }
-    } catch (err) {
-      console.error("Like error", err);
-      setLiked((s) => !s);
-      alert("Could not update like: " + err.message);
-    }
-  };
+    alert("Could not update like: " + (err?.message || err));
+  }
+};
+
 
   const handleSave = async (e) => {
     e?.stopPropagation?.();
@@ -219,14 +240,7 @@ export default function HomeCard({
                 {liked ? <FaHeart /> : <FaRegHeart />}
               </button>
 
-              <button
-                className="btn-save"
-                onClick={handleSave}
-                aria-pressed={saved}
-                title={saved ? "Unsave" : "Save"}
-              >
-                {saved ? <FaBookmark /> : <FaRegBookmark />}
-              </button>
+              
             </div>
           </div>
         </div>

@@ -120,33 +120,69 @@ router.delete('/follow', async (req, res) => {
 
 /* ---------- Likes / Saves (unchanged behaviour) ---------- */
 
-// like
-router.post("/like", async (req, res) => {
-  const { userId, postId } = req.body;
-  if (!userId || !postId) return errRes(res, 'Missing IDs', 400);
+router.post('/like', async (req, res) => {
   try {
-    const { error } = await supabaseAdmin.from("likes").upsert({ user_id: userId, post_id: postId });
-    if (error) throw error;
-    res.json({ ok: true });
+    const { userId, postId } = req.body ?? {};
+    if (!userId || !postId) return res.status(400).json({ error: 'Missing userId or postId' });
+
+    // avoid upsert complexity: check then insert if missing
+    const { data: existing, error: selErr } = await supabaseAdmin
+      .from('likes')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('post_id', postId)
+      .limit(1);
+
+    if (selErr) throw selErr;
+
+    if (!existing || existing.length === 0) {
+      const { error: insertErr } = await supabaseAdmin
+        .from('likes')
+        .insert({ user_id: userId, post_id: postId });
+      if (insertErr) throw insertErr;
+    }
+
+    const { data: _, error: cntErr, count } = await supabaseAdmin
+      .from('likes')
+      .select('*', { count: 'exact' })
+      .eq('post_id', postId);
+
+    if (cntErr) throw cntErr;
+
+    return res.json({ ok: true, liked: true, likes_count: count ?? 0 });
   } catch (err) {
-    console.error("Like error:", err);
-    res.status(500).json({ error: "Like failed" });
+    console.error('Like error', err);
+    return res.status(500).json({ error: 'Like failed', details: err.message });
   }
 });
 
-// unlike
-router.post("/unlike", async (req, res) => {
-  const { userId, postId } = req.body;
-  if (!userId || !postId) return errRes(res, 'Missing IDs', 400);
+router.post('/unlike', async (req, res) => {
   try {
-    const { error } = await supabaseAdmin.from("likes").delete().eq("user_id", userId).eq("post_id", postId);
-    if (error) throw error;
-    res.json({ ok: true });
+    const { userId, postId } = req.body ?? {};
+    if (!userId || !postId) return res.status(400).json({ error: 'Missing userId or postId' });
+
+    const { error: delErr } = await supabaseAdmin
+      .from('likes')
+      .delete()
+      .eq('user_id', userId)
+      .eq('post_id', postId);
+
+    if (delErr) throw delErr;
+
+    const { data: _, error: cntErr, count } = await supabaseAdmin
+      .from('likes')
+      .select('*', { count: 'exact' })
+      .eq('post_id', postId);
+
+    if (cntErr) throw cntErr;
+
+    return res.json({ ok: true, liked: false, likes_count: count ?? 0 });
   } catch (err) {
-    console.error("Unlike error:", err);
-    res.status(500).json({ error: "Unlike failed" });
+    console.error('Unlike error', err);
+    return res.status(500).json({ error: 'Unlike failed', details: err.message });
   }
 });
+
 
 // save
 router.post("/save", async (req, res) => {

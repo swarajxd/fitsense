@@ -76,6 +76,29 @@ router.get('/feed', async (req, res) => {
         console.warn('[FEED] follows fetch exception', e && e.message);
       }
     }
+     // --- likes + liked logic (single query for all posts) ---
+    const postIds = (rows || []).map(r => r.id).filter(Boolean);
+    let likesRows = [];
+    if (postIds.length) {
+      const { data: lrows, error: lerr } = await supabaseAdmin
+        .from('likes')
+        .select('post_id, user_id')
+        .in('post_id', postIds);
+
+      if (lerr) {
+        console.warn('[FEED] could not fetch likes', lerr);
+      } else {
+        likesRows = lrows || [];
+      }
+    }
+
+    const counts = {};
+    const likedByViewer = new Set();
+    for (const l of likesRows) {
+      counts[l.post_id] = (counts[l.post_id] || 0) + 1;
+      if (userId && l.user_id === userId) likedByViewer.add(l.post_id);
+    }
+
 
     // Map rows to output shape
     const mapped = await Promise.all((rows || []).map(async row => {
@@ -93,10 +116,14 @@ router.get('/feed', async (req, res) => {
         author,
         avatar,
         isFollowing: userId ? followeeIds.includes(row.user_id) : false,
+        likes: counts[row.id] || 0,
+        liked: likedByViewer.has(row.id),
+
         raw: row
       };
     }));
-
+    // debug (you can remove this later)
+    console.log('[FEED OUT] sample', mapped.slice(0, 6).map(p => ({ id: p.id, likes: p.likes, liked: p.liked })));
     return res.json({ posts: mapped });
   } catch (err) {
     console.error('[FEED] server error', err);
@@ -164,6 +191,29 @@ router.get('/following', async (req, res) => {
       return res.status(500).json({ error: error.message || 'failed to load posts' });
     }
 
+// --- paste this where you currently map rows to response in feed.js ---
+// --- likes + liked logic for following posts ---
+    const postIds = (rows || []).map(r => r.id).filter(Boolean);
+    let likesRows = [];
+    if (postIds.length) {
+      const { data: lrows, error: lerr } = await supabaseAdmin
+        .from('likes')
+        .select('post_id, user_id')
+        .in('post_id', postIds);
+
+      if (lerr) {
+        console.warn('[FOLLOWING] could not fetch likes', lerr);
+      } else {
+        likesRows = lrows || [];
+      }
+    }
+
+    const counts = {};
+    const likedByViewer = new Set();
+    for (const l of likesRows) {
+      counts[l.post_id] = (counts[l.post_id] || 0) + 1;
+      if (userId && l.user_id === userId) likedByViewer.add(l.post_id);
+    }
     // Map rows
     const mapped = await Promise.all((rows || []).map(async row => {
       const author = row.profiles?.username ?? row.user_id;
@@ -180,9 +230,15 @@ router.get('/following', async (req, res) => {
         author,
         avatar,
         isFollowing: true, // these are followees by definition
+        likes: counts[row.id] || 0,        // <-- number of likes
+        liked: likedByViewer.has(row.id), // <-- whether current viewer liked it
+
         raw: row
       };
     }));
+    // debug log (optional, remove after verification)
+ console.log('[FOLLOWING OUT] sample', mapped.slice(0, 6).map(p => ({ id: p.id, likes: p.likes, liked: p.liked })));
+
 
     return res.json({ posts: mapped });
   } catch (err) {
