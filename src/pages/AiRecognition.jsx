@@ -1,42 +1,55 @@
-"use client"
+"use client";
 
-import { useState, useRef, useEffect } from "react"
-import { Home, Search, Camera, Heart, Send, Mic, Paperclip, X, MicOff } from "lucide-react"
-import "./AiRecognition.css"
-import Header from '../components/header'
+import { useState, useRef, useEffect } from "react";
+import {
+  Home,
+  Search,
+  Camera,
+  Heart,
+  Send,
+  Mic,
+  Paperclip,
+  X,
+  MicOff,
+} from "lucide-react";
+import "./AiRecognition.css";
+import Header from "../components/header";
 
 const ChatbotAI = () => {
-  const [message, setMessage] = useState("")
-  const [messages, setMessages] = useState([])
-  const [isTyping, setIsTyping] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
-  const [uploadedImages, setUploadedImages] = useState([])
-  const [showImagePreview, setShowImagePreview] = useState(false)
-  const fileInputRef = useRef(null)
-  const mediaRecorderRef = useRef(null)
-  const [audioLevel, setAudioLevel] = useState(0)
-  const messagesEndRef = useRef(null)
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState([]);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const messagesEndRef = useRef(null);
 
   // Gemini API Configuration - Using Vite environment variables
-  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-  const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+  const GEMINI_API_URL =
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const callGeminiAPI = async (userMessage, images = []) => {
     try {
       if (!GEMINI_API_KEY) {
-        throw new Error("Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file")
+        throw new Error(
+          "Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file"
+        );
       }
 
       const fashionDesignerPrompt = `You are a professional fashion designer and style consultant. Give concise, direct fashion advice in maximum 1 paragraph. Be specific with outfit recommendations, colors, and styling tips. Get straight to the point without lengthy explanations. Focus on actionable advice that's easy to follow.
 
-      User message: ${userMessage}`
+      User message: ${userMessage}`;
 
-      const parts = [{ text: fashionDesignerPrompt }]
+      const parts = [{ text: fashionDesignerPrompt }];
 
       // Add images to the request if any
       images.forEach((img) => {
@@ -45,8 +58,8 @@ const ChatbotAI = () => {
             mime_type: img.type,
             data: img.data,
           },
-        })
-      })
+        });
+      });
 
       const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
         method: "POST",
@@ -56,40 +69,48 @@ const ChatbotAI = () => {
         body: JSON.stringify({
           contents: [{ parts }],
         }),
-      })
+      });
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(`Gemini API error: ${errorData.error?.message || "Unknown error"}`)
+        const errorData = await response.json();
+        throw new Error(
+          `Gemini API error: ${errorData.error?.message || "Unknown error"}`
+        );
       }
 
-      const data = await response.json()
-      return data.candidates[0]?.content?.parts[0]?.text || "Sorry, I couldn't generate a response. Please try again."
+      const data = await response.json();
+      return (
+        data.candidates[0]?.content?.parts[0]?.text ||
+        "Sorry, I couldn't generate a response. Please try again."
+      );
     } catch (error) {
-      console.error("Gemini API Error:", error)
-      return `Sorry, I encountered an error: ${error.message}. Please make sure your Gemini API key is properly configured and try again.`
+      console.error("Gemini API Error:", error);
+      return `Sorry, I encountered an error: ${error.message}. Please make sure your Gemini API key is properly configured and try again.`;
     }
-  }
+  };
 
   const handleSendMessage = async () => {
-    if (!message.trim() && uploadedImages.length === 0) return
+    if (!message.trim() && uploadedImages.length === 0) return;
 
     const newMessage = {
       type: "user",
       content: message,
-      images: uploadedImages.map((img) => ({ url: img.preview, name: img.name })),
-    }
+      images: uploadedImages.map((img) => ({
+        url: img.preview,
+        name: img.name,
+      })),
+    };
 
-    setMessages((prev) => [...prev, newMessage])
-    const currentMessage = message
-    const currentImages = uploadedImages
+    setMessages((prev) => [...prev, newMessage]);
+    const currentMessage = message;
+    const currentImages = uploadedImages;
 
-    setMessage("")
-    setUploadedImages([])
-    setIsTyping(true)
+    setMessage("");
+    setUploadedImages([]);
+    setIsTyping(true);
 
     // Call Gemini API
-    const aiResponse = await callGeminiAPI(currentMessage, currentImages)
+    const aiResponse = await callGeminiAPI(currentMessage, currentImages);
 
     setMessages((prev) => [
       ...prev,
@@ -97,25 +118,25 @@ const ChatbotAI = () => {
         type: "ai",
         content: aiResponse,
       },
-    ])
-    setIsTyping(false)
-  }
+    ]);
+    setIsTyping(false);
+  };
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
+      e.preventDefault();
+      handleSendMessage();
     }
-  }
+  };
 
   const handleImageUpload = (event) => {
-    const files = Array.from(event.target.files)
-    
-    if (files.length === 0) return
+    const files = Array.from(event.target.files);
+
+    if (files.length === 0) return;
 
     files.forEach((file) => {
       if (file.type.startsWith("image/")) {
-        const reader = new FileReader()
+        const reader = new FileReader();
         reader.onload = (e) => {
           const imageData = {
             name: file.name,
@@ -123,89 +144,89 @@ const ChatbotAI = () => {
             data: e.target.result.split(",")[1], // Remove data:image/jpeg;base64, prefix
             preview: e.target.result,
             file,
-          }
-          setUploadedImages((prev) => [...prev, imageData])
-        }
+          };
+          setUploadedImages((prev) => [...prev, imageData]);
+        };
         reader.onerror = (error) => {
-          console.error('Error reading file:', error)
-        }
-        reader.readAsDataURL(file)
+          console.error("Error reading file:", error);
+        };
+        reader.readAsDataURL(file);
       }
-    })
-  }
+    });
+  };
 
   const handleFileButtonClick = () => {
     if (fileInputRef.current) {
       // Reset the input value to allow selecting the same file again
-      fileInputRef.current.value = ""
-      fileInputRef.current.click()
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
     }
-  }
+  };
 
   const removeImage = (index) => {
-    setUploadedImages((prev) => prev.filter((_, i) => i !== index))
-  }
+    setUploadedImages((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
-      mediaRecorderRef.current = mediaRecorder
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
 
       // Audio level detection
-      const audioContext = new AudioContext()
-      const analyser = audioContext.createAnalyser()
-      const microphone = audioContext.createMediaStreamSource(stream)
-      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      const microphone = audioContext.createMediaStreamSource(stream);
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-      microphone.connect(analyser)
-      analyser.fftSize = 256
+      microphone.connect(analyser);
+      analyser.fftSize = 256;
 
       const updateAudioLevel = () => {
         if (isRecording) {
-          analyser.getByteFrequencyData(dataArray)
-          const average = dataArray.reduce((a, b) => a + b) / dataArray.length
-          setAudioLevel((average / 255) * 100)
-          requestAnimationFrame(updateAudioLevel)
+          analyser.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+          setAudioLevel((average / 255) * 100);
+          requestAnimationFrame(updateAudioLevel);
         }
-      }
+      };
 
-      const audioChunks = []
+      const audioChunks = [];
       mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data)
-      }
+        audioChunks.push(event.data);
+      };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: "audio/wav" })
+        const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
         // Here you would typically convert speech to text
         // For now, we'll just add a placeholder
-        setMessage("Voice message recorded (Speech-to-text would go here)")
+        setMessage("Voice message recorded (Speech-to-text would go here)");
 
-        stream.getTracks().forEach((track) => track.stop())
-        setAudioLevel(0)
-      }
+        stream.getTracks().forEach((track) => track.stop());
+        setAudioLevel(0);
+      };
 
-      mediaRecorder.start()
-      setIsRecording(true)
-      updateAudioLevel()
+      mediaRecorder.start();
+      setIsRecording(true);
+      updateAudioLevel();
     } catch (error) {
-      console.error("Error starting recording:", error)
+      console.error("Error starting recording:", error);
     }
-  }
+  };
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
-      setIsRecording(false)
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
     }
-  }
+  };
 
   const suggestions = [
     "What colors work best with my skin tone?",
     "Suggest an outfit for a casual date",
     "How to style a white shirt differently?",
     "Best accessories for winter outfits",
-  ]
+  ];
 
   return (
     <div className="fitsense-container">
@@ -216,22 +237,33 @@ const ChatbotAI = () => {
         multiple
         accept="image/*"
         onChange={handleImageUpload}
-        style={{ display: 'none' }}
+        style={{ display: "none" }}
       />
-<Header />
+      <Header />
 
       {/* Main Content */}
-      <main className="fitsense-main">
+      <main className="fitsense-main1">
         {messages.length === 0 ? (
           /* Welcome Screen */
           <div className="welcome-screen">
             {/* Centered Greeting */}
             <div className="welcome-greeting">
-              <h2 className="greeting-title1">Hi there, Bhavith<br/>What would like to know?</h2>
-              <p className="greeting-subtitle1">Use one of the most common prompts<br/> bellow or use your own to begin</p>
+              <h2 className="greeting-title1">
+                Hi there, Bhavith
+                <br />
+                What would like to know?
+              </h2>
+              <p className="greeting-subtitle1">
+                Use one of the most common prompts
+                <br /> bellow or use your own to begin
+              </p>
             </div>
-
-           
+            <div className="alreadygivenoptions">
+              <div className="option1 option"></div>
+              <div className="option1 option"></div>
+              <div className="option1 option"></div>
+              <div className="option1 option"></div>
+            </div>
 
             {/* Input Box */}
             <div className="welcome-input-container">
@@ -241,8 +273,15 @@ const ChatbotAI = () => {
                   <div className="image-previews">
                     {uploadedImages.map((img, index) => (
                       <div key={index} className="image-preview-item">
-                        <img src={img.preview || "/placeholder.svg"} alt={img.name} className="preview-image" />
-                        <button onClick={() => removeImage(index)} className="remove-image-btn">
+                        <img
+                          src={img.preview || "/placeholder.svg"}
+                          alt={img.name}
+                          className="preview-image"
+                        />
+                        <button
+                          onClick={() => removeImage(index)}
+                          className="remove-image-btn"
+                        >
                           <X className="remove-icon" />
                         </button>
                       </div>
@@ -273,14 +312,19 @@ const ChatbotAI = () => {
                     </button>
                     <button
                       onClick={isRecording ? stopRecording : startRecording}
-                      className={`action-button ${isRecording ? "recording" : ""}`}
+                      className={`action-button ${
+                        isRecording ? "recording" : ""
+                      }`}
                       title={isRecording ? "Stop recording" : "Start recording"}
                       disabled={isTyping}
                     >
                       {isRecording ? (
                         <>
                           <MicOff className="action-icon" />
-                          <div className="recording-pulse" style={{ opacity: audioLevel / 100 }} />
+                          <div
+                            className="recording-pulse"
+                            style={{ opacity: audioLevel / 100 }}
+                          />
                         </>
                       ) : (
                         <Mic className="action-icon" />
@@ -379,8 +423,15 @@ const ChatbotAI = () => {
                   <div className="image-previews">
                     {uploadedImages.map((img, index) => (
                       <div key={index} className="image-preview-item">
-                        <img src={img.preview || "/placeholder.svg"} alt={img.name} className="preview-image" />
-                        <button onClick={() => removeImage(index)} className="remove-image-btn">
+                        <img
+                          src={img.preview || "/placeholder.svg"}
+                          alt={img.name}
+                          className="preview-image"
+                        />
+                        <button
+                          onClick={() => removeImage(index)}
+                          className="remove-image-btn"
+                        >
                           <X className="remove-icon" />
                         </button>
                       </div>
@@ -411,14 +462,19 @@ const ChatbotAI = () => {
                     </button>
                     <button
                       onClick={isRecording ? stopRecording : startRecording}
-                      className={`chat-action-button ${isRecording ? "recording" : ""}`}
+                      className={`chat-action-button ${
+                        isRecording ? "recording" : ""
+                      }`}
                       disabled={isTyping}
                       title={isRecording ? "Stop recording" : "Start recording"}
                     >
                       {isRecording ? (
                         <>
                           <MicOff className="action-icon" />
-                          <div className="recording-pulse" style={{ opacity: audioLevel / 100 }} />
+                          <div
+                            className="recording-pulse"
+                            style={{ opacity: audioLevel / 100 }}
+                          />
                         </>
                       ) : (
                         <Mic className="action-icon" />
@@ -426,7 +482,10 @@ const ChatbotAI = () => {
                     </button>
                     <button
                       onClick={handleSendMessage}
-                      disabled={(!message.trim() && uploadedImages.length === 0) || isTyping}
+                      disabled={
+                        (!message.trim() && uploadedImages.length === 0) ||
+                        isTyping
+                      }
                       className="chat-send-button"
                       title="Send message"
                     >
@@ -440,7 +499,7 @@ const ChatbotAI = () => {
         )}
       </main>
     </div>
-  )
-}
+  );
+};
 
-export default ChatbotAI
+export default ChatbotAI;

@@ -2,7 +2,6 @@
   --app-header-height: 64px;
 }
 
-/* Force dark app background everywhere (fixes stray white areas) */
 
 /* keep toggle lower so cards start below it */
 .home-top-row {

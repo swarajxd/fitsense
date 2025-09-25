@@ -202,6 +202,7 @@ function toggleSave(postOrId, newSaved, newCount) {
   return (
     <>
       <Header />
+      <div className="home-cont">
       <div className="home-top-row">
         <div className="home-toggle">
           <button className={`mode-btn ${mode === "following" ? "active" : ""}`} onClick={() => { setMode('following'); setOffset(0); }}>
@@ -262,7 +263,9 @@ function toggleSave(postOrId, newSaved, newCount) {
 
         <Discover />
         <Link to="/create" className="upload-button" title="Create">+</Link>
+        
       </main>
+      </div>
     </>
   );
 }
