@@ -11,7 +11,11 @@ import {
   Paperclip,
   X,
   MicOff,
+  History,
+  Trash2,
+  MessageSquare,
 } from "lucide-react";
+import { createClient } from '@supabase/supabase-js';
 import "./AiRecognition.css";
 import Header from "../components/header";
 
@@ -22,20 +26,168 @@ const ChatbotAI = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [showImagePreview, setShowImagePreview] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [currentChatId, setCurrentChatId] = useState(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const [audioLevel, setAudioLevel] = useState(0);
   const messagesEndRef = useRef(null);
+
+  // Supabase Configuration
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   // Gemini API Configuration - Using Vite environment variables
   const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
   const GEMINI_API_URL =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
+  // Predefined prompt options
+  const promptOptions = [
+    "What colors work best with my skin tone?",
+    "Suggest an outfit for a casual date",
+    "How to style a white shirt differently?",
+    "Best accessories for winter outfits",
+  ];
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Load chat history from Supabase on component mount
+  useEffect(() => {
+    loadChatHistoryFromSupabase();
+  }, []);
+
+  // Save current chat to Supabase when messages change
+  useEffect(() => {
+    if (messages.length > 0 && currentChatId) {
+      saveChatToSupabase();
+    }
+  }, [messages]);
+
+  const loadChatHistoryFromSupabase = async () => {
+    try {
+      setIsLoadingHistory(true);
+      const { data, error } = await supabase
+        .from('chat_history')
+        .select('*')
+        .order('last_updated', { ascending: false });
+
+      if (error) {
+        console.error('Error loading chat history:', error);
+        return;
+      }
+
+      setChatHistory(data || []);
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const saveChatToSupabase = async () => {
+    if (messages.length === 0 || !currentChatId) return;
+    
+    try {
+      const firstUserMessage = messages.find(msg => msg.type === "user")?.content || "New Chat";
+      const chatTitle = generateChatTitle(firstUserMessage);
+      
+      const chatData = {
+        id: currentChatId,
+        title: chatTitle,
+        messages: messages,
+        timestamp: new Date().toISOString(),
+        last_updated: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('chat_history')
+        .upsert(chatData, { onConflict: 'id' });
+
+      if (error) {
+        console.error('Error saving chat to Supabase:', error);
+      } else {
+        // Update local state
+        setChatHistory(prev => {
+          const existingIndex = prev.findIndex(chat => chat.id === currentChatId);
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = chatData;
+            return updated;
+          } else {
+            return [chatData, ...prev];
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error saving chat to Supabase:', error);
+    }
+  };
+
+  const deleteChatFromSupabase = async (chatId) => {
+    try {
+      const { error } = await supabase
+        .from('chat_history')
+        .delete()
+        .eq('id', chatId);
+
+      if (error) {
+        console.error('Error deleting chat from Supabase:', error);
+      } else {
+        setChatHistory(prev => prev.filter(chat => chat.id !== chatId));
+        if (currentChatId === chatId) {
+          startNewChat();
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting chat from Supabase:', error);
+    }
+  };
+
+  const generateChatId = () => {
+    return Date.now().toString();
+  };
+
+  const generateChatTitle = (firstMessage) => {
+    // Generate a title from the first user message
+    const title = firstMessage.length > 30 
+      ? firstMessage.substring(0, 30) + "..." 
+      : firstMessage;
+    return title || "New Chat";
+  };
+
+  const startNewChat = () => {
+    if (messages.length > 0 && currentChatId) {
+      saveChatToSupabase();
+    }
+    setMessages([]);
+    setMessage("");
+    setUploadedImages([]);
+    setCurrentChatId(generateChatId());
+    setShowHistory(false);
+  };
+
+  const loadChatFromHistory = (chat) => {
+    if (messages.length > 0 && currentChatId) {
+      saveChatToSupabase();
+    }
+    setMessages(chat.messages || []);
+    setCurrentChatId(chat.id);
+    setMessage("");
+    setUploadedImages([]);
+    setShowHistory(false);
+  };
+
+  const deleteChatFromHistory = (chatId, e) => {
+    e.stopPropagation(); // Prevent loading the chat when delete is clicked
+    deleteChatFromSupabase(chatId);
+  };
 
   const callGeminiAPI = async (userMessage, images = []) => {
     try {
@@ -89,12 +241,18 @@ const ChatbotAI = () => {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!message.trim() && uploadedImages.length === 0) return;
+  const handleSendMessage = async (messageText = null) => {
+    const messageToSend = messageText || message;
+    if (!messageToSend.trim() && uploadedImages.length === 0) return;
+
+    // Start new chat if this is the first message
+    if (messages.length === 0 && !currentChatId) {
+      setCurrentChatId(generateChatId());
+    }
 
     const newMessage = {
       type: "user",
-      content: message,
+      content: messageToSend,
       images: uploadedImages.map((img) => ({
         url: img.preview,
         name: img.name,
@@ -102,7 +260,7 @@ const ChatbotAI = () => {
     };
 
     setMessages((prev) => [...prev, newMessage]);
-    const currentMessage = message;
+    const currentMessage = messageToSend;
     const currentImages = uploadedImages;
 
     setMessage("");
@@ -120,6 +278,11 @@ const ChatbotAI = () => {
       },
     ]);
     setIsTyping(false);
+  };
+
+  const handlePromptClick = (prompt) => {
+    setMessage(prompt);
+    handleSendMessage(prompt);
   };
 
   const handleKeyPress = (e) => {
@@ -221,12 +384,20 @@ const ChatbotAI = () => {
     }
   };
 
-  const suggestions = [
-    "What colors work best with my skin tone?",
-    "Suggest an outfit for a casual date",
-    "How to style a white shirt differently?",
-    "Best accessories for winter outfits",
-  ];
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
 
   return (
     <div className="fitsense-container">
@@ -239,7 +410,76 @@ const ChatbotAI = () => {
         onChange={handleImageUpload}
         style={{ display: "none" }}
       />
-      <Header />
+      
+      {/* Header with History Button */}
+      <div className="header-container">
+        <Header />
+        <button 
+          className="history-button"
+          onClick={() => setShowHistory(!showHistory)}
+          title="Chat History"
+        >
+          <History className="history-icon" />
+        </button>
+      </div>
+
+      {/* History Sidebar */}
+      {showHistory && (
+        <div className="history-sidebar">
+          <div className="history-header">
+            <h3>Chat History</h3>
+            <button 
+              className="new-chat-button"
+              onClick={startNewChat}
+              title="Start New Chat"
+            >
+              <MessageSquare className="new-chat-icon" />
+              New Chat
+            </button>
+          </div>
+          <div className="history-list">
+            {isLoadingHistory ? (
+              <div className="loading-history">
+                <p>Loading chat history...</p>
+              </div>
+            ) : chatHistory.length === 0 ? (
+              <div className="no-history">
+                <p>No chat history yet</p>
+              </div>
+            ) : (
+              chatHistory.map((chat) => (
+                <div 
+                  key={chat.id} 
+                  className={`history-item ${currentChatId === chat.id ? 'active' : ''}`}
+                  onClick={() => loadChatFromHistory(chat)}
+                >
+                  <div className="history-item-content">
+                    <div className="history-item-title">{chat.title}</div>
+                    <div className="history-item-timestamp">
+                      {formatTimestamp(chat.timestamp)}
+                    </div>
+                  </div>
+                  <button
+                    className="delete-chat-button"
+                    onClick={(e) => deleteChatFromHistory(chat.id, e)}
+                    title="Delete Chat"
+                  >
+                    <Trash2 className="delete-icon" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* History Overlay */}
+      {showHistory && (
+        <div 
+          className="history-overlay"
+          onClick={() => setShowHistory(false)}
+        />
+      )}
 
       {/* Main Content */}
       <main className="fitsense-main1">
@@ -251,18 +491,25 @@ const ChatbotAI = () => {
               <h2 className="greeting-title1">
                 Hi there, Bhavith
                 <br />
-                What would like to know?
+                What would you like to know?
               </h2>
               <p className="greeting-subtitle1">
                 Use one of the most common prompts
                 <br /> bellow or use your own to begin
               </p>
             </div>
+            
+            {/* Prompt Options */}
             <div className="alreadygivenoptions">
-              <div className="option1 option"></div>
-              <div className="option1 option"></div>
-              <div className="option1 option"></div>
-              <div className="option1 option"></div>
+              {promptOptions.map((prompt, index) => (
+                <div 
+                  key={index}
+                  className="option1 option"
+                  onClick={() => handlePromptClick(prompt)}
+                >
+                  {prompt}
+                </div>
+              ))}
             </div>
 
             {/* Input Box */}
@@ -331,7 +578,7 @@ const ChatbotAI = () => {
                       )}
                     </button>
                     <button
-                      onClick={handleSendMessage}
+                      onClick={() => handleSendMessage()}
                       disabled={!message.trim() && uploadedImages.length === 0}
                       className="send-button"
                       title="Send message"
@@ -481,7 +728,7 @@ const ChatbotAI = () => {
                       )}
                     </button>
                     <button
-                      onClick={handleSendMessage}
+                      onClick={() => handleSendMessage()}
                       disabled={
                         (!message.trim() && uploadedImages.length === 0) ||
                         isTyping

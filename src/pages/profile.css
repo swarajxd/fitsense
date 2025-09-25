@@ -674,6 +674,7 @@
   font-size: 14px;
   position: relative;
   transition: color 0.2s ease;
+  margin-top: 12px;
 }
 
 .profile-mode-btn.active { color: #fff; }
