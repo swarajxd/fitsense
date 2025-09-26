@@ -36,8 +36,8 @@ const ChatbotAI = () => {
   const messagesEndRef = useRef(null);
 
   // Supabase Configuration
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL1;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY1;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   // Gemini API Configuration - Using Vite environment variables
