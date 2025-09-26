@@ -16,10 +16,29 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { createClient } from '@supabase/supabase-js';
+import { useUser } from '@clerk/clerk-react';
 import "./AiRecognition.css";
 import Header from "../components/header";
 
+// Create Supabase client as singleton to avoid multiple instances
+let supabaseInstance = null;
+
+const getSupabaseClient = () => {
+  if (!supabaseInstance) {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (supabaseUrl && supabaseKey) {
+      supabaseInstance = createClient(supabaseUrl, supabaseKey);
+    }
+  }
+  return supabaseInstance;
+};
+
 const ChatbotAI = () => {
+  const { user, isLoaded } = useUser(); // Clerk authentication
+  const supabase = getSupabaseClient();
+  
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -34,11 +53,6 @@ const ChatbotAI = () => {
   const mediaRecorderRef = useRef(null);
   const [audioLevel, setAudioLevel] = useState(0);
   const messagesEndRef = useRef(null);
-
-  // Supabase Configuration
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL1;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY1;
-  const supabase = createClient(supabaseUrl, supabaseKey);
 
   // Gemini API Configuration - Using Vite environment variables
   const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
@@ -60,26 +74,44 @@ const ChatbotAI = () => {
 
   // Load chat history from Supabase on component mount
   useEffect(() => {
-    loadChatHistoryFromSupabase();
-  }, []);
-
-  // Save current chat to Supabase when messages change
-  useEffect(() => {
-    if (messages.length > 0 && currentChatId) {
-      saveChatToSupabase();
+    if (supabase && isLoaded && user) {
+      loadChatHistoryFromSupabase();
     }
-  }, [messages]);
+  }, [isLoaded, user]);
+
+  // Save current chat to Supabase when messages change (with debouncing)
+  useEffect(() => {
+    if (messages.length > 0 && currentChatId && supabase && isLoaded && user) {
+      const timeoutId = setTimeout(() => {
+        saveChatToSupabase();
+      }, 1000); // Debounce for 1 second
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages, currentChatId, isLoaded, user]);
 
   const loadChatHistoryFromSupabase = async () => {
+    if (!supabase) {
+      console.warn('Supabase not configured - chat history will not persist');
+      return;
+    }
+
+    if (!isLoaded || !user) {
+      console.warn('User not loaded or authenticated - chat history will not persist');
+      return;
+    }
+
     try {
       setIsLoadingHistory(true);
+
       const { data, error } = await supabase
         .from('chat_history')
         .select('*')
+        .eq('user_id', user.id) // Use Clerk user ID
         .order('last_updated', { ascending: false });
 
       if (error) {
-        console.error('Error loading chat history:', error);
+        console.error('Error loading chat history:', error.message, error);
         return;
       }
 
@@ -92,27 +124,40 @@ const ChatbotAI = () => {
   };
 
   const saveChatToSupabase = async () => {
-    if (messages.length === 0 || !currentChatId) return;
+    if (!supabase || messages.length === 0 || !currentChatId) return;
     
+    if (!isLoaded || !user) {
+      console.warn('User not loaded or authenticated - cannot save chat');
+      return;
+    }
+
     try {
       const firstUserMessage = messages.find(msg => msg.type === "user")?.content || "New Chat";
       const chatTitle = generateChatTitle(firstUserMessage);
       
       const chatData = {
         id: currentChatId,
+        user_id: user.id, // Use Clerk user ID
         title: chatTitle,
-        messages: messages,
+        messages: messages, // Keep as object/array - JSONB will handle it
         timestamp: new Date().toISOString(),
         last_updated: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      console.log('Saving chat data:', chatData); // Debug log
+
+      const { data, error } = await supabase
         .from('chat_history')
-        .upsert(chatData, { onConflict: 'id' });
+        .upsert(chatData, { 
+          onConflict: 'id',
+          returning: 'minimal'
+        });
 
       if (error) {
-        console.error('Error saving chat to Supabase:', error);
+        console.error('Error saving chat to Supabase:', error.message, error);
+        console.error('Chat data that failed:', chatData);
       } else {
+        console.log('Chat saved successfully');
         // Update local state
         setChatHistory(prev => {
           const existingIndex = prev.findIndex(chat => chat.id === currentChatId);
@@ -131,14 +176,22 @@ const ChatbotAI = () => {
   };
 
   const deleteChatFromSupabase = async (chatId) => {
+    if (!supabase) return;
+
+    if (!isLoaded || !user) {
+      console.warn('User not loaded or authenticated - cannot delete chat');
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('chat_history')
         .delete()
-        .eq('id', chatId);
+        .eq('id', chatId)
+        .eq('user_id', user.id); // Only delete user's own chats
 
       if (error) {
-        console.error('Error deleting chat from Supabase:', error);
+        console.error('Error deleting chat from Supabase:', error.message, error);
       } else {
         setChatHistory(prev => prev.filter(chat => chat.id !== chatId));
         if (currentChatId === chatId) {
@@ -151,7 +204,7 @@ const ChatbotAI = () => {
   };
 
   const generateChatId = () => {
-    return Date.now().toString();
+    return `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   };
 
   const generateChatTitle = (firstMessage) => {
@@ -163,7 +216,7 @@ const ChatbotAI = () => {
   };
 
   const startNewChat = () => {
-    if (messages.length > 0 && currentChatId) {
+    if (messages.length > 0 && currentChatId && supabase && isLoaded && user) {
       saveChatToSupabase();
     }
     setMessages([]);
@@ -174,10 +227,14 @@ const ChatbotAI = () => {
   };
 
   const loadChatFromHistory = (chat) => {
-    if (messages.length > 0 && currentChatId) {
+    if (messages.length > 0 && currentChatId && supabase && isLoaded && user) {
       saveChatToSupabase();
     }
-    setMessages(chat.messages || []);
+    
+    // Since you're using JSONB, messages should already be an object/array
+    const chatMessages = chat.messages || [];
+    
+    setMessages(chatMessages);
     setCurrentChatId(chat.id);
     setMessage("");
     setUploadedImages([]);
@@ -257,6 +314,7 @@ const ChatbotAI = () => {
         url: img.preview,
         name: img.name,
       })),
+      timestamp: new Date().toISOString()
     };
 
     setMessages((prev) => [...prev, newMessage]);
@@ -275,6 +333,7 @@ const ChatbotAI = () => {
       {
         type: "ai",
         content: aiResponse,
+        timestamp: new Date().toISOString()
       },
     ]);
     setIsTyping(false);
@@ -414,17 +473,19 @@ const ChatbotAI = () => {
       {/* Header with History Button */}
       <div className="header-container">
         <Header />
-        <button 
-          className="history-button"
-          onClick={() => setShowHistory(!showHistory)}
-          title="Chat History"
-        >
-          <History className="history-icon" />
-        </button>
+        {supabase && isLoaded && user && (
+          <button 
+            className="history-button"
+            onClick={() => setShowHistory(!showHistory)}
+            title="Chat History"
+          >
+            <History className="history-icon" />
+          </button>
+        )}
       </div>
 
       {/* History Sidebar */}
-      {showHistory && (
+      {showHistory && supabase && isLoaded && user && (
         <div className="history-sidebar">
           <div className="history-header">
             <h3>Chat History</h3>
