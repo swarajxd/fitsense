@@ -1,0 +1,189 @@
+/* EDIT PROFILE — improved layout + visibility (replace existing file) */
+
+/* backdrop */
+.ep-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 3, 3, 0.7);
+  z-index: 9999;
+  padding: 20px;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+/* modal */
+.ep-modal {
+  width: 780px;
+  max-width: 100%;
+  background: linear-gradient(180deg, #121316 0%, #0e0f11 100%);
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+  color: #f5f7fa;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* heading */
+.ep-modal h3 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* form container uses grid 2-col on desktop */
+.ep-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 18px; /* row-gap col-gap */
+  align-items: start;
+}
+
+/* single column fields that should span two columns */
+.ep-field--full {
+  grid-column: 1 / -1;
+}
+
+/* label / help text */
+.ep-field label,
+.ep-field > span {
+  display: block;
+  font-size: 13px;
+  color: rgba(255,255,255,0.78);
+  margin-bottom: 6px;
+}
+
+/* input / textarea base */
+.ep-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #f5f7fa;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* textarea */
+.ep-textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.45;
+  padding-top: 10px;
+}
+
+/* nicer scrollbar inside textarea on webkit */
+.ep-textarea::-webkit-scrollbar { height: 8px; width: 8px; }
+.ep-textarea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 8px; }
+
+/* file input row (span full width) */
+.ep-file-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* file input default style: make it sit on its own line */
+.ep-file-row input[type="file"] {
+  color: #fff;
+  font-size: 13px;
+}
+
+/* preview area: keep it constrained and centered */
+.ep-img-preview {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  border-radius: 12px;
+  object-fit: cover;
+  display: block;
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+}
+
+/* small placeholder if no image */
+.ep-img-placeholder {
+  width: 100%;
+  max-width: 420px;
+  height: 110px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  color: rgba(255,255,255,0.6);
+  border: 1px dashed rgba(255,255,255,0.04);
+  font-size: 13px;
+}
+
+/* actions row — spans full width and sticks to bottom visually */
+.ep-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+/* buttons */
+.ep-btn {
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.ep-btn-ghost {
+  background: transparent;
+  color: #eff2f5;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.ep-btn-ghost:hover {
+  background: rgba(255,255,255,0.02);
+  transform: translateY(-2px);
+}
+
+.ep-btn-primary {
+  background: linear-gradient(135deg, #ff6a00 0%, #ff8f3d 100%);
+  color: #0056eb;
+  box-shadow: 0 12px 36px rgba(255,106,0,0.16);
+}
+
+.ep-btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 46px rgba(255,106,0,0.22);
+}
+
+/* make the Save button stand out even if disabled styling needed */
+.ep-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* responsive: single column on small screens */
+@media (max-width: 760px) {
+  .ep-modal { width: 100%; padding: 16px; }
+  .ep-form { grid-template-columns: 1fr; }
+  .ep-img-preview, .ep-img-placeholder { max-width: 100%; }
+  .ep-actions { justify-content: space-between; }
+}
+
+/* accessibility: focus rings */
+.ep-input:focus, .ep-textarea:focus, .ep-file-row input[type="file"]:focus {
+  box-shadow: 0 0 0 3px rgba(255,106,0,0.12);
+  border-color: rgba(255,106,0,0.32);
+}

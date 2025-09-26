@@ -1,0 +1,20 @@
+{
+  "user_32Jf50rnysWyuoHQK9whjQtXljX": [
+    {
+      "roomId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM_user_32Jf50rnysWyuoHQK9whjQtXljX",
+      "otherId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM",
+      "otherDisplayName": "Pav Guy",
+      "otherImage": "https://www.gravatar.com/avatar?d=mp",
+      "createdAt": 1757523977415
+    }
+  ],
+  "user_32C5tzaPF4tl43EYJMFYtt7MQFM": [
+    {
+      "roomId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM_user_32Jf50rnysWyuoHQK9whjQtXljX",
+      "otherId": "user_32Jf50rnysWyuoHQK9whjQtXljX",
+      "otherDisplayName": "You",
+      "otherImage": null,
+      "createdAt": 1757523977415
+    }
+  ]
+}

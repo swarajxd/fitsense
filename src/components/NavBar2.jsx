@@ -1,29 +1,39 @@
+// src/components/NavBar2.jsx
+import React from "react";
 import './NavBar2.css';
 import { IoMailOutline } from "react-icons/io5";
-export default function NavBar2(){
+import { SignedIn, SignedOut, UserButton } from "@clerk/clerk-react";
+import { Link } from "react-router-dom";
 
+export default function NavBar2() {
+  return (
+    <div className="navbar2">
+      <div className="info">
+        <h1><IoMailOutline /> info@kuwloagem.com</h1>
+      </div>
 
-    return(
-        <>
-        <div className="navbar2">
-        <div className="info">
-            <h1><IoMailOutline />info@kuwloagem.com</h1>
-        </div>
-        <div className="logocontainer">
-            <h1>FITSENSE</h1>
-        </div>
-        <div class="nav-links">
-                <a href="#">Home</a>
-                <a href="#">About</a>
-                <a href="#">Services</a>
-                <a href="#">Contact</a>
-            </div>
-        
-        </div>
-        
-        
-        </>
+      <div className="logocontainer">
+        <h1>FITSENSE</h1>
+      </div>
 
+      <div className="nav-links">
+        <SignedOut>
+          {/* SPA nav to your custom Signup page */}
+          
+          {/* also provide Login link when signed out */}
+          <Link to="/login" className="nav-link">Login</Link>
+        </SignedOut>
 
-    );
+        <SignedIn>
+          {/* When signed in show Clerk's user button (avatar + menu) */}
+          <UserButton afterSignOutUrl="/" />
+        </SignedIn>
+
+        {/* static links */}
+        <a href="#about" className="nav-link">About</a>
+        <a href="#services" className="nav-link">Services</a>
+        <a href="#contact" className="nav-link">Contact</a>
+      </div>
+    </div>
+  );
 }

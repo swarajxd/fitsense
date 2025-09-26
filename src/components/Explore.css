@@ -22,8 +22,8 @@
     line-height:1;
 }
 .explorecard-alt{
-    width: 440px;
-  height: 640px;
+    width: 480px;
+  height: 720px;
 position: absolute;
 top: 15%;
 left: 40%;
@@ -42,9 +42,47 @@ background-color: #ab8a6ac9;
 }
 .imgcardbox5{
 
-width: 440px;
-height: 640px;
+width: 500px;
+height: 740px;
   background-size: cover;
-    margin-top: 50px;
+    margin-top: 60px;
     background-repeat: no-repeat;
+}
+
+.explore-randomtext3{
+  position: absolute;
+  bottom: 10%;
+  left: 5%;
+  font-size: 18px;
+  letter-spacing: -0.5px;
+}
+.icons3{
+  width: 190px;
+  height: 190px;
+  position: absolute;
+  top: 45%;
+  left: 25%;
+}
+.explore-randomdiv2{
+  height: 600px;
+  width:400px;
+
+  position: absolute;
+  right: 7%;
+  top: 19%;
+}
+.random-points{
+font-size:40px;
+line-height: 1.1;
+font-weight: 500;
+letter-spacing: -2px;
+margin-bottom: 50px;
+}
+.random-pointssmall{
+  font-size: 20px;
+font-weight: 500;
+margin-top: -15px;
+letter-spacing: -0.5px;
+color: var(--gray-500);
+visibility: hidden;
 }
