@@ -83,6 +83,167 @@
 .pfp { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #333; border: 2px solid rgba(255,255,255,0.04); }
 .username { font-weight: 600; color: #ddd; font-size: 14px; }
 
+/* -------------------------
+   Profile-mode : Edit / Delete
+   ------------------------- */
+.profile-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Edit button: elevated, subtle, matches card theme */
+.btn-edit {
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 72px;
+  text-align: center;
+  transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.45);
+}
+.btn-edit:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.09);
+}
+.btn-edit:focus {
+  outline: 2px solid rgba(255,138,0,0.18);
+  outline-offset: 3px;
+}
+
+/* Delete button: destructive but still elegant */
+.btn-delete {
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(239,68,68,0.18);
+  background: rgba(239,68,68,0.06);
+  color: #fef9f9;
+  font-weight: 800;
+  cursor: pointer;
+  min-width: 72px;
+  text-align: center;
+  transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+.btn-delete:hover {
+  transform: translateY(-2px);
+  background: rgba(239,68,68,0.12);
+}
+.btn-delete:focus {
+  outline: 2px solid rgba(239,68,68,0.18);
+  outline-offset: 3px;
+}
+
+/* destructive menu item (inside dropdown) */
+.menu-item.destructive {
+  color: #ff6b6b;
+  font-weight: 800;
+}
+.menu-item.destructive:hover { background: rgba(239,68,68,0.06); }
+/* -------------------------
+   Profile-mode matches forYou
+   (scoped so forYou remains unchanged)
+   ------------------------- */
+
+.homecard.profile-mode { /* container */
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* image wrap + hover behaviour (same as forYou) */
+.homecard.profile-mode .img-wrap {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  transition: transform 200ms ease, filter 200ms ease;
+  margin-top: 20px;
+}
+.homecard.profile-mode .img-wrap:hover {
+  transform: translateY(-6px) scale(1.01);
+  filter: brightness(0.98);
+}
+
+.homecard.profile-mode .homecard-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  background: #000;
+  vertical-align: top;
+}
+
+/* menu visibility exactly like forYou */
+.homecard.profile-mode .menu-wrap { position: absolute; top: 10px; right: 10px; z-index: 40; opacity: 0; transform: translateY(-4px); transition: opacity 160ms ease, transform 160ms ease; pointer-events: none; }
+.homecard.profile-mode:hover .menu-wrap { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.homecard.profile-mode .menu-wrap.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+/* top-left info */
+.homecard.profile-mode .top-left-info { position: absolute; top: 10px; left: 12px; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 20px; opacity: 0; transform: translateY(-4px); transition: opacity 160ms ease, transform 160ms ease; pointer-events: none; }
+.homecard.profile-mode:hover .top-left-info { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+.homecard.profile-mode .top-left-pfp-container { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2); background: #333; }
+.homecard.profile-mode .top-left-pfp { width: 100%; height: 100%; object-fit: cover; }
+.homecard.profile-mode .top-left-username { color: #fff; font-size: 14px; font-weight: 600; white-space: nowrap; }
+
+/* overlay + actions matched to forYou */
+.homecard.profile-mode .homecard-overlay { position: absolute; left: 0; right: 0; bottom: 0; height: 54%; background: linear-gradient(to top, rgba(0,0,0,0.96), rgba(0,0,0,0.0)); display: flex; align-items: flex-end; justify-content: center; padding: 12px; transform: translateY(100%); transition: transform 220ms cubic-bezier(.2,.8,.2,1), opacity 200ms; opacity: 0; pointer-events: none; }
+.homecard.profile-mode .homecard-overlay.visible { transform: translateY(0%); opacity: 1; pointer-events: auto; }
+
+.homecard.profile-mode .overlay-actions { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
+.homecard.profile-mode .btn-follow { background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.08); padding: 6px 10px; border-radius: 12px; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); font-size: 13px; box-shadow: 0 6px 14px rgba(0,0,0,0.25); }
+.homecard.profile-mode .btn-follow.following { background: #f08a2e; color: #111; border: none; }
+
+.homecard.profile-mode .right-actions { display: flex; align-items: center; gap: 10px; }
+.homecard.profile-mode .likes-count { color: rgba(255,255,255,0.95); font-weight: 700; font-size: 14px; margin-right: 6px; }
+
+.homecard.profile-mode .btn-like { background: rgba(255,255,255,0.04); border-radius: 10px; padding: 8px; border: 1px solid rgba(255,255,255,0.06); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 38px; min-height: 38px; color: #fff; font-size: 1.1rem; }
+.homecard.profile-mode .btn-like svg { transition: transform 140ms ease; } 
+.homecard.profile-mode .btn-like:hover svg { transform: scale(1.08); }
+.homecard.profile-mode .btn-like[aria-pressed="true"] { color: #ff2d55; }
+
+/* footer / author row */
+.homecard.profile-mode .homecard-footer { display: flex; align-items: center; gap: 10px; padding: 10px 8px; margin-top: 6px; color: #ddd; background: rgba(0,0,0,0.6); border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+.homecard.profile-mode .pfp { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #333; border: 2px solid rgba(255,255,255,0.04); }
+.homecard.profile-mode .username { font-weight: 600; color: #ddd; font-size: 14px; }
+
+/* profile actions (edit/delete) kept the same style as forYou action area */
+.homecard.profile-mode .profile-actions { display: flex; gap: 10px; align-items: center; }
+.homecard.profile-mode .btn-edit,
+.homecard.profile-mode .btn-delete {
+  padding: 8px 12px;
+  border-radius: 12px;
+  min-width: 72px;
+  text-align: center;
+  transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+.homecard.profile-mode .btn-edit {
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.45);
+}
+.homecard.profile-mode .btn-delete {
+  border: 1px solid rgba(239,68,68,0.18);
+  background: rgba(239,68,68,0.06);
+  color: #fef9f9;
+  font-weight: 800;
+}
+
+/* small-screen adjustments */
+@media (max-width: 520px) {
+  .homecard.profile-mode .likes-count { font-size: 13px; margin-right: 4px; }
+  .homecard.profile-mode .menu-btn { min-width: 34px; min-height: 34px; padding: 6px; }
+}
+
+
 @media (max-width: 520px) {
   .likes-count { font-size: 13px; margin-right: 4px; }
   .menu-btn { min-width: 34px; min-height: 34px; padding: 6px; }
