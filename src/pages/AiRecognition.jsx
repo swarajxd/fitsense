@@ -14,6 +14,7 @@ import {
   History,
   Trash2,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { createClient } from '@supabase/supabase-js';
 import { useUser } from '@clerk/clerk-react';
@@ -36,7 +37,7 @@ const getSupabaseClient = () => {
 };
 
 const ChatbotAI = () => {
-  const { user, isLoaded } = useUser(); // Clerk authentication
+  const { user, isLoaded } = useUser();
   const supabase = getSupabaseClient();
   
   const [message, setMessage] = useState("");
@@ -49,17 +50,167 @@ const ChatbotAI = () => {
   const [chatHistory, setChatHistory] = useState([]);
   const [currentChatId, setCurrentChatId] = useState(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [generatingOutfitImage, setGeneratingOutfitImage] = useState(false);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const [audioLevel, setAudioLevel] = useState(0);
   const messagesEndRef = useRef(null);
 
-  // Gemini API Configuration - Using Vite environment variables
   const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
   const GEMINI_API_URL =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  const BACKEND_API_URL = (import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:7000').replace(/\/$/, '');
 
-  // Predefined prompt options
+  const analyzeImageWithModel = async (imageFile) => {
+    try {
+      const formData = new FormData();
+      formData.append('image', imageFile);
+      formData.append('run_color', 'true');
+      formData.append('run_pattern', 'true');
+      formData.append('run_season', 'true');
+      formData.append('score_thr', '0.7');
+      formData.append('topk', '10');
+
+      const response = await fetch(`${BACKEND_API_URL}/api/analyze`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Backend API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error analyzing image with model:', error);
+      throw error;
+    }
+  };
+
+  const generateOutfitImage = async (outfitDescription) => {
+    try {
+      // Validate description before sending
+      if (!outfitDescription || outfitDescription.trim().length < 10) {
+        console.log('Skipping image generation - description too short:', outfitDescription);
+        return null;
+      }
+      
+      setGeneratingOutfitImage(true);
+      
+      const response = await fetch(`${BACKEND_API_URL}/api/generate-outfit-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          outfitDescription: outfitDescription
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Backend error:', errorData);
+        throw new Error(errorData.error || 'Failed to generate outfit image');
+      }
+
+      const data = await response.json();
+      return data.image;
+    } catch (error) {
+      console.error('Error generating outfit image:', error);
+      return null;
+    } finally {
+      setGeneratingOutfitImage(false);
+    }
+  };
+
+  // Extract outfit recommendations from AI response
+  const extractOutfitRecommendations = (content) => {
+    const outfits = [];
+    const lines = content.split('\n');
+    let currentOutfit = null;
+    let inOutfitSection = false;
+    
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      
+      // Look for outfit recommendations sections or "Alternative Outfit Ideas"
+      if (trimmed.match(/alternative outfit|outfit \d+|recommendation \d+|outfit idea/i)) {
+        if (currentOutfit && currentOutfit.description.length > 0) {
+          outfits.push(currentOutfit);
+        }
+        currentOutfit = { description: [] };
+        inOutfitSection = true;
+      }
+      
+      // Collect outfit details when in outfit section
+      if (inOutfitSection && trimmed) {
+        // Look for clothing item mentions
+        if (trimmed.match(/top|bottom|shirt|pants|dress|footwear|shoes|accessories|jacket|coat|blouse|skirt|jeans|sweater|cardigan|blazer/i)) {
+          currentOutfit.description.push(trimmed.replace(/^[-*•]\s*/, ''));
+        }
+        // Stop collecting if we hit another main section
+        if (trimmed.match(/^\d+\.\s*\*\*[^A]/i) && !trimmed.match(/outfit/i)) {
+          inOutfitSection = false;
+        }
+      }
+    });
+    
+    // Add the last outfit if it exists
+    if (currentOutfit && currentOutfit.description.length > 0) {
+      outfits.push(currentOutfit);
+    }
+    
+    // Convert to descriptive strings, filter empty ones
+    const descriptions = outfits
+      .map(outfit => outfit.description.join(', '))
+      .filter(desc => desc.length > 20); // Only keep substantial descriptions
+    
+    console.log('Extracted outfit descriptions:', descriptions);
+    return descriptions;
+  };
+
+  // Helper function to parse AI response into structured sections
+  const parseAIResponse = (content) => {
+    const sections = [];
+    const lines = content.split('\n');
+    let currentSection = { title: '', content: [] };
+    
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      
+      // Check for section headers (numbered or with asterisks)
+      const headerMatch = trimmed.match(/^(\d+\.\s*)?[\*]{0,2}([^*:]+)[\*]{0,2}:?\s*(.*)$/);
+      
+      if (headerMatch && (trimmed.startsWith('**') || /^\d+\./.test(trimmed))) {
+        // Save previous section if it has content
+        if (currentSection.title || currentSection.content.length > 0) {
+          sections.push({ ...currentSection });
+        }
+        // Start new section
+        currentSection = {
+          title: headerMatch[2].trim(),
+          content: headerMatch[3] ? [headerMatch[3].trim()] : []
+        };
+      } else if (trimmed) {
+        // Add to current section content
+        currentSection.content.push(trimmed);
+      }
+    });
+    
+    // Add the last section
+    if (currentSection.title || currentSection.content.length > 0) {
+      sections.push(currentSection);
+    }
+    
+    // If no sections detected, return as single block
+    if (sections.length === 0) {
+      return [{ title: '', content: [content] }];
+    }
+    
+    return sections;
+  };
+
   const promptOptions = [
     "What colors work best with my skin tone?",
     "Suggest an outfit for a casual date",
@@ -67,54 +218,40 @@ const ChatbotAI = () => {
     "Best accessories for winter outfits",
   ];
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Load chat history from Supabase on component mount
   useEffect(() => {
     if (supabase && isLoaded && user) {
       loadChatHistoryFromSupabase();
     }
   }, [isLoaded, user]);
 
-  // Save current chat to Supabase when messages change (with debouncing)
   useEffect(() => {
     if (messages.length > 0 && currentChatId && supabase && isLoaded && user) {
       const timeoutId = setTimeout(() => {
         saveChatToSupabase();
-      }, 1000); // Debounce for 1 second
-
+      }, 1000);
       return () => clearTimeout(timeoutId);
     }
   }, [messages, currentChatId, isLoaded, user]);
 
   const loadChatHistoryFromSupabase = async () => {
-    if (!supabase) {
-      console.warn('Supabase not configured - chat history will not persist');
-      return;
-    }
-
-    if (!isLoaded || !user) {
-      console.warn('User not loaded or authenticated - chat history will not persist');
-      return;
-    }
+    if (!supabase || !isLoaded || !user) return;
 
     try {
       setIsLoadingHistory(true);
-
       const { data, error } = await supabase
         .from('chat_history')
         .select('*')
-        .eq('user_id', user.id) // Use Clerk user ID
+        .eq('user_id', user.id)
         .order('last_updated', { ascending: false });
 
       if (error) {
         console.error('Error loading chat history:', error.message, error);
         return;
       }
-
       setChatHistory(data || []);
     } catch (error) {
       console.error('Error loading chat history:', error);
@@ -124,12 +261,7 @@ const ChatbotAI = () => {
   };
 
   const saveChatToSupabase = async () => {
-    if (!supabase || messages.length === 0 || !currentChatId) return;
-    
-    if (!isLoaded || !user) {
-      console.warn('User not loaded or authenticated - cannot save chat');
-      return;
-    }
+    if (!supabase || messages.length === 0 || !currentChatId || !isLoaded || !user) return;
 
     try {
       const firstUserMessage = messages.find(msg => msg.type === "user")?.content || "New Chat";
@@ -137,28 +269,20 @@ const ChatbotAI = () => {
       
       const chatData = {
         id: currentChatId,
-        user_id: user.id, // Use Clerk user ID
+        user_id: user.id,
         title: chatTitle,
-        messages: messages, // Keep as object/array - JSONB will handle it
+        messages: messages,
         timestamp: new Date().toISOString(),
         last_updated: new Date().toISOString()
       };
 
-      console.log('Saving chat data:', chatData); // Debug log
-
       const { data, error } = await supabase
         .from('chat_history')
-        .upsert(chatData, { 
-          onConflict: 'id',
-          returning: 'minimal'
-        });
+        .upsert(chatData, { onConflict: 'id', returning: 'minimal' });
 
       if (error) {
         console.error('Error saving chat to Supabase:', error.message, error);
-        console.error('Chat data that failed:', chatData);
       } else {
-        console.log('Chat saved successfully');
-        // Update local state
         setChatHistory(prev => {
           const existingIndex = prev.findIndex(chat => chat.id === currentChatId);
           if (existingIndex >= 0) {
@@ -176,19 +300,14 @@ const ChatbotAI = () => {
   };
 
   const deleteChatFromSupabase = async (chatId) => {
-    if (!supabase) return;
-
-    if (!isLoaded || !user) {
-      console.warn('User not loaded or authenticated - cannot delete chat');
-      return;
-    }
+    if (!supabase || !isLoaded || !user) return;
 
     try {
       const { error } = await supabase
         .from('chat_history')
         .delete()
         .eq('id', chatId)
-        .eq('user_id', user.id); // Only delete user's own chats
+        .eq('user_id', user.id);
 
       if (error) {
         console.error('Error deleting chat from Supabase:', error.message, error);
@@ -208,7 +327,6 @@ const ChatbotAI = () => {
   };
 
   const generateChatTitle = (firstMessage) => {
-    // Generate a title from the first user message
     const title = firstMessage.length > 30 
       ? firstMessage.substring(0, 30) + "..." 
       : firstMessage;
@@ -231,9 +349,7 @@ const ChatbotAI = () => {
       saveChatToSupabase();
     }
     
-    // Since you're using JSONB, messages should already be an object/array
     const chatMessages = chat.messages || [];
-    
     setMessages(chatMessages);
     setCurrentChatId(chat.id);
     setMessage("");
@@ -242,25 +358,63 @@ const ChatbotAI = () => {
   };
 
   const deleteChatFromHistory = (chatId, e) => {
-    e.stopPropagation(); // Prevent loading the chat when delete is clicked
+    e.stopPropagation();
     deleteChatFromSupabase(chatId);
   };
 
-  const callGeminiAPI = async (userMessage, images = []) => {
+  const callGeminiAPI = async (userMessage, images = [], analysisData = null) => {
     try {
       if (!GEMINI_API_KEY) {
-        throw new Error(
-          "Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file"
-        );
+        throw new Error("Gemini API key not found. Please add VITE_GEMINI_API_KEY to your .env file");
       }
 
-      const fashionDesignerPrompt = `You are a professional fashion designer and style consultant. Give concise, direct fashion advice in maximum 1 paragraph. Be specific with outfit recommendations, colors, and styling tips. Get straight to the point without lengthy explanations. Focus on actionable advice that's easy to follow.
+      let fashionDesignerPrompt = `You are an expert fashion stylist and designer. `;
 
-      User message: ${userMessage}`;
+      if (analysisData && analysisData.length > 0) {
+        fashionDesignerPrompt += `The user has uploaded an outfit image. Here's the AI-detected analysis:\n\n`;
+        
+        analysisData.forEach((result, idx) => {
+          if (result.analysis && result.analysis.items) {
+            fashionDesignerPrompt += `Image ${idx + 1} contains:\n`;
+            result.analysis.items.forEach((item, itemIdx) => {
+              fashionDesignerPrompt += `${itemIdx + 1}. ${item.det_label} - ${item.color.label || 'unknown color'} (${item.pattern.label || 'unknown pattern'}) - ${item.season.label || 'unknown season'} season\n`;
+            });
+            fashionDesignerPrompt += `\n`;
+          }
+        });
+
+        fashionDesignerPrompt += `Based on this outfit analysis, please provide a comprehensive fashion consultation with the following structure:
+
+1. **Current Outfit Description**: Briefly describe what the user is wearing based on the detected items.
+
+2. **Answer User's Question**: ${userMessage}
+
+3. **Outfit Assessment**: Comment on the current outfit - what works well (color combinations, patterns, seasonal appropriateness).
+
+4. **Improvement Suggestions**: Provide 2-3 specific actionable improvements for the current outfit (e.g., different color choices, better-fitting alternatives, accessory additions).
+
+5. **Alternative Outfit Ideas**: Suggest 2 complete alternative outfits with a similar style/theme that would work well. For each outfit, specify:
+   - Top/shirt recommendation
+   - Bottom recommendation
+   - Footwear suggestion
+   - Key accessories
+   - Why this combination works
+
+Keep your response conversational, practical, and under 300 words total. Be specific with colors, styles, and brands when relevant.`;
+      } else {
+        fashionDesignerPrompt += `The user asked: "${userMessage}"
+
+Provide helpful, specific fashion advice in a conversational tone. Include:
+- Direct answer to their question
+- 2-3 specific actionable tips
+- Example outfit combinations if relevant
+- Color/style recommendations
+
+Keep it under 200 words and be practical.`;
+      }
 
       const parts = [{ text: fashionDesignerPrompt }];
 
-      // Add images to the request if any
       images.forEach((img) => {
         parts.push({
           inline_data: {
@@ -272,26 +426,17 @@ const ChatbotAI = () => {
 
       const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [{ parts }],
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts }] }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(
-          `Gemini API error: ${errorData.error?.message || "Unknown error"}`
-        );
+        throw new Error(`Gemini API error: ${errorData.error?.message || "Unknown error"}`);
       }
 
       const data = await response.json();
-      return (
-        data.candidates[0]?.content?.parts[0]?.text ||
-        "Sorry, I couldn't generate a response. Please try again."
-      );
+      return data.candidates[0]?.content?.parts[0]?.text || "Sorry, I couldn't generate a response. Please try again.";
     } catch (error) {
       console.error("Gemini API Error:", error);
       return `Sorry, I encountered an error: ${error.message}. Please make sure your Gemini API key is properly configured and try again.`;
@@ -302,7 +447,6 @@ const ChatbotAI = () => {
     const messageToSend = messageText || message;
     if (!messageToSend.trim() && uploadedImages.length === 0) return;
 
-    // Start new chat if this is the first message
     if (messages.length === 0 && !currentChatId) {
       setCurrentChatId(generateChatId());
     }
@@ -310,10 +454,7 @@ const ChatbotAI = () => {
     const newMessage = {
       type: "user",
       content: messageToSend,
-      images: uploadedImages.map((img) => ({
-        url: img.preview,
-        name: img.name,
-      })),
+      images: uploadedImages.map((img) => ({ url: img.preview, name: img.name })),
       timestamp: new Date().toISOString()
     };
 
@@ -325,18 +466,75 @@ const ChatbotAI = () => {
     setUploadedImages([]);
     setIsTyping(true);
 
-    // Call Gemini API
-    const aiResponse = await callGeminiAPI(currentMessage, currentImages);
+    try {
+      let analysisResults = null;
+      
+      if (currentImages.length > 0) {
+        try {
+          console.log('Starting image analysis...');
+          const analysisPromises = currentImages.map(img => analyzeImageWithModel(img.file));
+          const allAnalysis = await Promise.all(analysisPromises);
+          
+          analysisResults = allAnalysis.map((analysis, idx) => ({
+            imageIndex: idx,
+            imageName: currentImages[idx].name,
+            analysis: analysis
+          }));
+          
+          console.log('Image analysis completed:', analysisResults);
+        } catch (error) {
+          console.error('Image analysis failed:', error);
+        }
+      }
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        type: "ai",
-        content: aiResponse,
-        timestamp: new Date().toISOString()
-      },
-    ]);
-    setIsTyping(false);
+      const aiResponse = await callGeminiAPI(currentMessage, currentImages, analysisResults);
+
+      // Extract outfit recommendations and generate images
+      const outfitRecommendations = extractOutfitRecommendations(aiResponse);
+      let generatedOutfitImages = [];
+
+      if (outfitRecommendations.length > 0) {
+        console.log('Found outfit recommendations, generating images...');
+        console.log('Descriptions:', outfitRecommendations);
+        
+        try {
+          const imagePromises = outfitRecommendations.slice(0, 2).map(outfit => 
+            generateOutfitImage(outfit)
+          );
+          generatedOutfitImages = await Promise.all(imagePromises);
+          generatedOutfitImages = generatedOutfitImages.filter(img => img !== null);
+          console.log('Generated images count:', generatedOutfitImages.length);
+        } catch (error) {
+          console.error('Failed to generate outfit images:', error);
+          // Continue without images if generation fails
+        }
+      } else {
+        console.log('No outfit recommendations found in AI response');
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "ai",
+          content: aiResponse,
+          analysisData: analysisResults,
+          outfitImages: generatedOutfitImages,
+          timestamp: new Date().toISOString()
+        },
+      ]);
+    } catch (error) {
+      console.error('Error in handleSendMessage:', error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "ai",
+          content: "Sorry, I encountered an error processing your request. Please try again.",
+          timestamp: new Date().toISOString()
+        },
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handlePromptClick = (prompt) => {
@@ -353,7 +551,6 @@ const ChatbotAI = () => {
 
   const handleImageUpload = (event) => {
     const files = Array.from(event.target.files);
-
     if (files.length === 0) return;
 
     files.forEach((file) => {
@@ -363,15 +560,13 @@ const ChatbotAI = () => {
           const imageData = {
             name: file.name,
             type: file.type,
-            data: e.target.result.split(",")[1], // Remove data:image/jpeg;base64, prefix
+            data: e.target.result.split(",")[1],
             preview: e.target.result,
             file,
           };
           setUploadedImages((prev) => [...prev, imageData]);
         };
-        reader.onerror = (error) => {
-          console.error("Error reading file:", error);
-        };
+        reader.onerror = (error) => console.error("Error reading file:", error);
         reader.readAsDataURL(file);
       }
     });
@@ -379,7 +574,6 @@ const ChatbotAI = () => {
 
   const handleFileButtonClick = () => {
     if (fileInputRef.current) {
-      // Reset the input value to allow selecting the same file again
       fileInputRef.current.value = "";
       fileInputRef.current.click();
     }
@@ -395,7 +589,6 @@ const ChatbotAI = () => {
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
-      // Audio level detection
       const audioContext = new AudioContext();
       const analyser = audioContext.createAnalyser();
       const microphone = audioContext.createMediaStreamSource(stream);
@@ -414,16 +607,10 @@ const ChatbotAI = () => {
       };
 
       const audioChunks = [];
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
-      };
-
+      mediaRecorder.ondataavailable = (event) => audioChunks.push(event.data);
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
-        // Here you would typically convert speech to text
-        // For now, we'll just add a placeholder
         setMessage("Voice message recorded (Speech-to-text would go here)");
-
         stream.getTracks().forEach((track) => track.stop());
         setAudioLevel(0);
       };
@@ -460,7 +647,6 @@ const ChatbotAI = () => {
 
   return (
     <div className="fitsense-container">
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -470,7 +656,6 @@ const ChatbotAI = () => {
         style={{ display: "none" }}
       />
       
-      {/* Header with History Button */}
       <div className="header-container">
         <Header />
         {supabase && isLoaded && user && (
@@ -484,29 +669,20 @@ const ChatbotAI = () => {
         )}
       </div>
 
-      {/* History Sidebar */}
       {showHistory && supabase && isLoaded && user && (
         <div className="history-sidebar">
           <div className="history-header">
             <h3>Chat History</h3>
-            <button 
-              className="new-chat-button"
-              onClick={startNewChat}
-              title="Start New Chat"
-            >
+            <button className="new-chat-button" onClick={startNewChat} title="Start New Chat">
               <MessageSquare className="new-chat-icon" />
               New Chat
             </button>
           </div>
           <div className="history-list">
             {isLoadingHistory ? (
-              <div className="loading-history">
-                <p>Loading chat history...</p>
-              </div>
+              <div className="loading-history"><p>Loading chat history...</p></div>
             ) : chatHistory.length === 0 ? (
-              <div className="no-history">
-                <p>No chat history yet</p>
-              </div>
+              <div className="no-history"><p>No chat history yet</p></div>
             ) : (
               chatHistory.map((chat) => (
                 <div 
@@ -516,15 +692,9 @@ const ChatbotAI = () => {
                 >
                   <div className="history-item-content">
                     <div className="history-item-title">{chat.title}</div>
-                    <div className="history-item-timestamp">
-                      {formatTimestamp(chat.timestamp)}
-                    </div>
+                    <div className="history-item-timestamp">{formatTimestamp(chat.timestamp)}</div>
                   </div>
-                  <button
-                    className="delete-chat-button"
-                    onClick={(e) => deleteChatFromHistory(chat.id, e)}
-                    title="Delete Chat"
-                  >
+                  <button className="delete-chat-button" onClick={(e) => deleteChatFromHistory(chat.id, e)} title="Delete Chat">
                     <Trash2 className="delete-icon" />
                   </button>
                 </div>
@@ -534,62 +704,38 @@ const ChatbotAI = () => {
         </div>
       )}
 
-      {/* History Overlay */}
       {showHistory && (
-        <div 
-          className="history-overlay"
-          onClick={() => setShowHistory(false)}
-        />
+        <div className="history-overlay" onClick={() => setShowHistory(false)} />
       )}
 
-      {/* Main Content */}
       <main className="fitsense-main1">
         {messages.length === 0 ? (
-          /* Welcome Screen */
           <div className="welcome-screen">
-            {/* Centered Greeting */}
             <div className="welcome-greeting">
               <h2 className="greeting-title1">
-                Hi there, Bhavith
-                <br />
-                What would you like to know?
+                Hi there, Bhavith<br />What would you like to know?
               </h2>
               <p className="greeting-subtitle1">
-                Use one of the most common prompts
-                <br /> bellow or use your own to begin
+                Use one of the most common prompts<br />below or use your own to begin
               </p>
             </div>
             
-            {/* Prompt Options */}
             <div className="alreadygivenoptions">
               {promptOptions.map((prompt, index) => (
-                <div 
-                  key={index}
-                  className="option1 option"
-                  onClick={() => handlePromptClick(prompt)}
-                >
+                <div key={index} className="option1 option" onClick={() => handlePromptClick(prompt)}>
                   {prompt}
                 </div>
               ))}
             </div>
 
-            {/* Input Box */}
             <div className="welcome-input-container">
               <div className="input-wrapper">
-                {/* Image Previews */}
                 {uploadedImages.length > 0 && (
                   <div className="image-previews">
                     {uploadedImages.map((img, index) => (
                       <div key={index} className="image-preview-item">
-                        <img
-                          src={img.preview || "/placeholder.svg"}
-                          alt={img.name}
-                          className="preview-image"
-                        />
-                        <button
-                          onClick={() => removeImage(index)}
-                          className="remove-image-btn"
-                        >
+                        <img src={img.preview || "/placeholder.svg"} alt={img.name} className="preview-image" />
+                        <button onClick={() => removeImage(index)} className="remove-image-btn">
                           <X className="remove-icon" />
                         </button>
                       </div>
@@ -610,29 +756,19 @@ const ChatbotAI = () => {
                     />
                   </div>
                   <div className="input-actions">
-                    <button
-                      onClick={handleFileButtonClick}
-                      className="action-button"
-                      title="Upload images"
-                      disabled={isTyping}
-                    >
+                    <button onClick={handleFileButtonClick} className="action-button" title="Upload images" disabled={isTyping}>
                       <Paperclip className="action-icon" />
                     </button>
                     <button
                       onClick={isRecording ? stopRecording : startRecording}
-                      className={`action-button ${
-                        isRecording ? "recording" : ""
-                      }`}
+                      className={`action-button ${isRecording ? "recording" : ""}`}
                       title={isRecording ? "Stop recording" : "Start recording"}
                       disabled={isTyping}
                     >
                       {isRecording ? (
                         <>
                           <MicOff className="action-icon" />
-                          <div
-                            className="recording-pulse"
-                            style={{ opacity: audioLevel / 100 }}
-                          />
+                          <div className="recording-pulse" style={{ opacity: audioLevel / 100 }} />
                         </>
                       ) : (
                         <Mic className="action-icon" />
@@ -649,7 +785,6 @@ const ChatbotAI = () => {
                   </div>
                 </div>
 
-                {/* Recording Indicator */}
                 {isRecording && (
                   <div className="recording-indicator">
                     <div className="recording-dot"></div>
@@ -660,7 +795,6 @@ const ChatbotAI = () => {
             </div>
           </div>
         ) : (
-          /* Chat Messages */
           <div className="chat-container">
             <div className="messages-container">
               <div className="messages-list">
@@ -693,7 +827,39 @@ const ChatbotAI = () => {
                             <span>F</span>
                           </div>
                           <div className="ai-message">
-                            <p>{msg.content}</p>
+                            {parseAIResponse(msg.content).map((section, idx) => (
+                              <div key={idx} className="response-section">
+                                {section.title && (
+                                  <h4 className="section-title">{section.title}</h4>
+                                )}
+                                <div className="section-content">
+                                  {section.content.map((paragraph, pIdx) => (
+                                    <p key={pIdx}>{paragraph}</p>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {msg.outfitImages && msg.outfitImages.length > 0 && (
+                              <div className="outfit-recommendations">
+                                <div className="outfit-header">
+                                  <Sparkles className="sparkles-icon" />
+                                  <h4>Outfit Visualizations</h4>
+                                </div>
+                                <div className="outfit-images-grid">
+                                  {msg.outfitImages.map((imgSrc, imgIdx) => (
+                                    <div key={imgIdx} className="outfit-image-card">
+                                      <img 
+                                        src={imgSrc} 
+                                        alt={`Outfit recommendation ${imgIdx + 1}`} 
+                                        className="outfit-generated-image"
+                                      />
+                                      <p className="outfit-image-label">Outfit {imgIdx + 1}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -714,6 +880,9 @@ const ChatbotAI = () => {
                             <div className="dot"></div>
                             <div className="dot"></div>
                           </div>
+                          {generatingOutfitImage && (
+                            <p className="generating-text">Generating outfit visualizations...</p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -723,23 +892,14 @@ const ChatbotAI = () => {
               </div>
             </div>
 
-            {/* Bottom Input */}
             <div className="chat-input-container">
               <div className="chat-input-wrapper">
-                {/* Image Previews */}
                 {uploadedImages.length > 0 && (
                   <div className="image-previews">
                     {uploadedImages.map((img, index) => (
                       <div key={index} className="image-preview-item">
-                        <img
-                          src={img.preview || "/placeholder.svg"}
-                          alt={img.name}
-                          className="preview-image"
-                        />
-                        <button
-                          onClick={() => removeImage(index)}
-                          className="remove-image-btn"
-                        >
+                        <img src={img.preview || "/placeholder.svg"} alt={img.name} className="preview-image" />
+                        <button onClick={() => removeImage(index)} className="remove-image-btn">
                           <X className="remove-icon" />
                         </button>
                       </div>
@@ -760,29 +920,19 @@ const ChatbotAI = () => {
                     />
                   </div>
                   <div className="input-actions">
-                    <button
-                      onClick={handleFileButtonClick}
-                      className="chat-action-button"
-                      disabled={isTyping}
-                      title="Upload images"
-                    >
+                    <button onClick={handleFileButtonClick} className="chat-action-button" disabled={isTyping} title="Upload images">
                       <Paperclip className="action-icon" />
                     </button>
                     <button
                       onClick={isRecording ? stopRecording : startRecording}
-                      className={`chat-action-button ${
-                        isRecording ? "recording" : ""
-                      }`}
+                      className={`chat-action-button ${isRecording ? "recording" : ""}`}
                       disabled={isTyping}
                       title={isRecording ? "Stop recording" : "Start recording"}
                     >
                       {isRecording ? (
                         <>
                           <MicOff className="action-icon" />
-                          <div
-                            className="recording-pulse"
-                            style={{ opacity: audioLevel / 100 }}
-                          />
+                          <div className="recording-pulse" style={{ opacity: audioLevel / 100 }} />
                         </>
                       ) : (
                         <Mic className="action-icon" />
@@ -790,10 +940,7 @@ const ChatbotAI = () => {
                     </button>
                     <button
                       onClick={() => handleSendMessage()}
-                      disabled={
-                        (!message.trim() && uploadedImages.length === 0) ||
-                        isTyping
-                      }
+                      disabled={(!message.trim() && uploadedImages.length === 0) || isTyping}
                       className="chat-send-button"
                       title="Send message"
                     >

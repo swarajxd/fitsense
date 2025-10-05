@@ -5,10 +5,15 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+const { spawn } = require('child_process');
 
 const postsRouter = require('./routes/posts');
 const app = express();
 const PORT = process.env.PORT || 7000;
+
+// Multer configuration for file uploads
+const upload = multer({ dest: 'uploads/' });
 
 /*upload posts*/
 
@@ -69,6 +74,131 @@ safeMount('/api/profile', './routes/profile');
 /* server/index.js (add) */
 safeMount('/api/posts', './routes/feed'); // NOTE: mounts feed at same base; keep if feed router is intended
 safeMount('/api/interactions', './routes/interactions');
+
+/* ---------- AI Model Analysis Endpoint ---------- */
+app.post('/api/analyze', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    const imagePath = path.resolve(req.file.path); // Full path to uploaded image
+    const scriptPath = path.resolve(__dirname, 'aimodel', 'pklrunner.py'); // Your Python script
+    const modelPath = path.resolve(__dirname, 'aimodel', 'unified_model.pkl'); // Your model
+    const resultsPath = path.resolve(__dirname, 'results.json');
+    
+    // Get parameters from request body
+    const runColor = req.body.run_color === 'true';
+    const runPattern = req.body.run_pattern === 'true';
+    const runSeason = req.body.run_season === 'true';
+    const scoreThr = parseFloat(req.body.score_thr) || 0.7;
+    const topk = parseInt(req.body.topk) || 10;
+
+    console.log('Analysis request:', {
+      imagePath,
+      modelPath,
+      scriptPath,
+      runColor,
+      runPattern,
+      runSeason,
+      scoreThr,
+      topk
+    });
+
+    // Build Python command arguments
+    const pythonArgs = [
+      scriptPath,
+      '--model', modelPath,
+      '--image', imagePath,
+      '--json_out', resultsPath,
+      '--score_thr', scoreThr.toString(),
+      '--topk', topk.toString()
+    ];
+
+    if (runColor) pythonArgs.push('--run_color');
+    if (runPattern) pythonArgs.push('--run_pattern');
+    if (runSeason) pythonArgs.push('--run_season');
+
+    console.log('Executing Python with args:', pythonArgs.join(' '));
+
+    // Execute Python script
+    const pythonProcess = spawn('python', pythonArgs); // Change to 'python3' if needed
+
+    let stdout = '';
+    let stderr = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+      console.log('Python stdout:', data.toString());
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+      console.error('Python stderr:', data.toString());
+    });
+
+    pythonProcess.on('close', (code) => {
+      console.log('Python process closed with code:', code);
+      
+      // Clean up uploaded file
+      fs.unlink(imagePath, (err) => {
+        if (err) console.error('Failed to delete temp file:', err);
+      });
+
+      if (code !== 0) {
+        console.error('Python process failed:', { code, stderr, stdout });
+        return res.status(500).json({ 
+          error: 'Model analysis failed', 
+          details: stderr || stdout,
+          code 
+        });
+      }
+
+      // Read the results.json file
+      fs.readFile(resultsPath, 'utf8', (err, data) => {
+        if (err) {
+          console.error('Failed to read results file:', err);
+          return res.status(500).json({ 
+            error: 'Failed to read analysis results',
+            details: err.message 
+          });
+        }
+
+        try {
+          const results = JSON.parse(data);
+          console.log('Analysis results:', results);
+          return res.json(results);
+        } catch (parseErr) {
+          console.error('Failed to parse results JSON:', parseErr);
+          return res.status(500).json({ 
+            error: 'Invalid results format',
+            details: parseErr.message,
+            rawData: data
+          });
+        }
+      });
+    });
+
+    pythonProcess.on('error', (err) => {
+      console.error('Failed to start Python process:', err);
+      fs.unlink(imagePath, () => {});
+      return res.status(500).json({ 
+        error: 'Failed to start Python process',
+        details: err.message 
+      });
+    });
+
+  } catch (error) {
+    console.error('Analyze endpoint error:', error);
+    if (req.file && req.file.path) {
+      fs.unlink(req.file.path, () => {});
+    }
+    return res.status(500).json({ 
+      error: 'Analysis failed', 
+      details: error.message 
+    });
+  }
+});
 
 /* ---------- Optional Clerk server SDK (only used if CLERK_API_KEY provided) ---------- */
 let clerkClient = null;
@@ -147,6 +277,13 @@ function ensureDataDir() {
 }
 ensureDataDir();
 
+// Create uploads directory if it doesn't exist
+const UPLOADS_DIR = path.resolve(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR);
+  console.log('Created uploads directory');
+}
+
 let messagesStore = {};       // { roomId: [ messageObj ] }
 let conversationsByUser = {}; // { userId: [ convoObj ] }
 
@@ -194,7 +331,85 @@ const demoUsers = [
   { id: "user3", username: "support", displayName: "FitSense Support", imageUrl: null },
   { id: "user4", username: "rohit", displayName: "Rohit Patel", imageUrl: null },
 ];
+// Add this after your /api/analyze endpoint (around line 200)
 
+app.post('/api/generate-outfit-image', async (req, res) => {
+  try {
+    const { outfitDescription } = req.body;
+    
+    if (!outfitDescription) {
+      return res.status(400).json({ error: 'Outfit description required' });
+    }
+
+    const STABILITY_API_KEY = process.env.STABILITY_API_KEY;
+    
+    if (!STABILITY_API_KEY) {
+      return res.status(500).json({ error: 'Stability API key not configured' });
+    }
+
+    // Enhanced prompt for fashion photography
+    const enhancedPrompt = `Professional fashion photography, studio lighting, clean background, ${outfitDescription}, high quality, detailed clothing, fashion model, full body shot, 8k resolution`;
+
+    console.log('Generating image for outfit:', enhancedPrompt);
+
+    const response = await fetch(
+      'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${STABILITY_API_KEY}`,
+        },
+        body: JSON.stringify({
+          text_prompts: [
+            {
+              text: enhancedPrompt,
+              weight: 1
+            },
+            {
+              text: 'blurry, bad quality, distorted, ugly, low resolution',
+              weight: -1
+            }
+          ],
+          cfg_scale: 7,
+          height: 1024,
+          width: 1024,
+          steps: 30,
+          samples: 1,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Stability AI error:', error);
+      return res.status(response.status).json({ 
+        error: 'Failed to generate image',
+        details: error 
+      });
+    }
+
+    const data = await response.json();
+    
+    if (data.artifacts && data.artifacts.length > 0) {
+      // Return the base64 image
+      return res.json({
+        image: `data:image/png;base64,${data.artifacts[0].base64}`,
+        seed: data.artifacts[0].seed
+      });
+    } else {
+      return res.status(500).json({ error: 'No image generated' });
+    }
+
+  } catch (error) {
+    console.error('Generate outfit image error:', error);
+    return res.status(500).json({ 
+      error: 'Failed to generate outfit image',
+      details: error.message 
+    });
+  }
+});
 /* ----------------- /api/users ----------------- */
 app.get('/api/users', async (req, res) => {
   try {

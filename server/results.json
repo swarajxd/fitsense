@@ -3,35 +3,35 @@
     {
       "crop_file": "det_00_crop.jpg",
       "det_label": "trousers",
-      "det_score": 0.9468276500701904,
+      "det_score": 0.9927566647529602,
       "color": {
-        "label": "Beige",
-        "score": 0.2714
+        "label": "Navy Blue",
+        "score": 0.4504
       },
       "pattern": {
         "label": "Solid",
-        "score": 0.9408
+        "score": 0.9856
       },
       "season": {
         "label": "Summer",
-        "score": 0.8593
+        "score": 0.7512
       }
     },
     {
       "crop_file": "det_01_crop.jpg",
       "det_label": "long_sleeved_shirt",
-      "det_score": 0.8824042677879333,
+      "det_score": 0.9063156843185425,
       "color": {
-        "label": "Brown",
-        "score": 0.4593
+        "label": "Black",
+        "score": 0.5832
       },
       "pattern": {
         "label": "Solid",
-        "score": 0.9977
+        "score": 0.3183
       },
       "season": {
         "label": "Summer",
-        "score": 0.8477
+        "score": 0.544
       }
     }
   ]
