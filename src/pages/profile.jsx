@@ -5,7 +5,7 @@ import Header from "../components/header";
 import HomeCard from "../components/HomeCard";
 import profilePicFallback from "../assets/profilepic.jpg";
 import EditProfile from "../components/EditProfile.jsx";
-import EditPostModal from "../components/EditPostModal"; // adjust path if different
+import EditPostModal from "../components/EditPostModal";
 import { supabase } from "../lib/supabaseClient";
 import { useUser, useAuth } from "@clerk/clerk-react";
 
@@ -49,42 +49,42 @@ export default function Profile() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [processingDelete, setProcessingDelete] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
-const [followingCount, setFollowingCount] = useState(0);
-const [isLoadingCounts, setIsLoadingCounts] = useState(true);
-//fetch followers/following counts
-useEffect(() => {
-  if (!profile?.user_id) return;
-  let cancelled = false;
-  (async () => {
-    setIsLoadingCounts(true);
-    try {
-      const { count: followers } = await supabase
-        .from("follows")
-        .select("id", { count: "exact", head: true })
-        .eq("followee_id", profile.user_id);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
 
-      const { count: following } = await supabase
-        .from("follows")
-        .select("id", { count: "exact", head: true })
-        .eq("follower_id", profile.user_id);
+  //fetch followers/following counts
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    let cancelled = false;
+    (async () => {
+      setIsLoadingCounts(true);
+      try {
+        const { count: followers } = await supabase
+          .from("follows")
+          .select("id", { count: "exact", head: true })
+          .eq("followee_id", profile.user_id);
 
-      if (!cancelled) {
-        setFollowersCount(followers ?? 0);
-        setFollowingCount(following ?? 0);
+        const { count: following } = await supabase
+          .from("follows")
+          .select("id", { count: "exact", head: true })
+          .eq("follower_id", profile.user_id);
+
+        if (!cancelled) {
+          setFollowersCount(followers ?? 0);
+          setFollowingCount(following ?? 0);
+        }
+      } catch (err) {
+        console.error("Error fetching counts:", err);
+        if (!cancelled) {
+          setFollowersCount(0);
+          setFollowingCount(0);
+        }
+      } finally {
+        if (!cancelled) setIsLoadingCounts(false);
       }
-    } catch (err) {
-      console.error("Error fetching counts:", err);
-      if (!cancelled) {
-        setFollowersCount(0);
-        setFollowingCount(0);
-      }
-    } finally {
-      if (!cancelled) setIsLoadingCounts(false);
-    }
-  })();
-  return () => { cancelled = true; };
-}, [profile?.user_id]);
-
+    })();
+    return () => { cancelled = true; };
+  }, [profile?.user_id]);
 
   // Fetch profile on mount (only after Clerk user is available)
   useEffect(() => {
@@ -113,7 +113,7 @@ useEffect(() => {
               name: data.name || user?.fullName || "Taha Sayed",
               username: fallbackUsername,
               bio: data.bio || "Follow for more outfit inspiration",
-              profilePic: data.avatar_url ,
+              profilePic: data.avatar_url,
               public_id: data.public_id || data.publicId || null,
               user_id: data.user_id || user.id
             });
@@ -267,6 +267,43 @@ useEffect(() => {
       })
     );
   }, [profile]);
+
+ // Masonry layout initialization
+useEffect(() => {
+  const timer = setTimeout(() => {
+    const galleries = document.querySelectorAll('.fs-gallery, .saved-gallery');
+    
+    galleries.forEach(gallery => {
+      const items = gallery.querySelectorAll('.fs-gallery-item');
+      
+      const resizeItem = (item) => {
+        const img = item.querySelector('img, .homecard-img');
+        if (!img) return;
+        
+        const style = window.getComputedStyle(gallery);
+        const rowHeightPx = parseInt(style.getPropertyValue('grid-auto-rows')) || 8;
+        const gapPx = parseInt(style.getPropertyValue('gap')) || parseInt(style.getPropertyValue('grid-row-gap')) || 16;
+        const imgHeight = img.getBoundingClientRect().height;
+        const rowSpan = Math.max(1, Math.ceil((imgHeight + gapPx) / (rowHeightPx + gapPx)));
+        
+        item.style.gridRowEnd = `span ${rowSpan}`;
+      };
+      
+      items.forEach(item => {
+        const img = item.querySelector('img, .homecard-img');
+        if (!img) return;
+        
+        if (img.complete) {
+          resizeItem(item);
+        } else {
+          img.addEventListener('load', () => resizeItem(item));
+        }
+      });
+    });
+  }, 100);
+
+  return () => clearTimeout(timer);
+}, [posts, savedPosts, mode]);
 
   // handle save from EditProfile (persists to server and updates UI)
   const handleSave = async (updatedUser) => {
@@ -498,21 +535,20 @@ useEffect(() => {
                   <div className="fs-handle">@{displayUsername}</div>
                   <div className="fs-bio">{profile.bio}</div>
 
-                 <div className="fs-stats">
-                  <div className="fs-stat">
-                    <b>{userPosts.length}</b>
-                    <span>Posts</span>
+                  <div className="fs-stats">
+                    <div className="fs-stat">
+                      <b>{userPosts.length}</b>
+                      <span>Posts</span>
+                    </div>
+                    <div className="fs-stat">
+                      <b>{isLoadingCounts ? "…" : followersCount}</b>
+                      <span>Followers</span>
+                    </div>
+                    <div className="fs-stat">
+                      <b>{isLoadingCounts ? "…" : followingCount}</b>
+                      <span>Following</span>
+                    </div>
                   </div>
-                  <div className="fs-stat">
-                    <b>{isLoadingCounts ? "…" : followersCount}</b>
-                    <span>Followers</span>
-                  </div>
-                  <div className="fs-stat">
-                    <b>{isLoadingCounts ? "…" : followingCount}</b>
-                    <span>Following</span>
-                  </div>
-                </div>
-
 
                   <div className="fs-actions">
                     <button className="fs-btn fs-btn-follow">Share</button>
@@ -545,7 +581,6 @@ useEffect(() => {
                   >
                     Saved ({savedPosts.length})
                   </button>
-
                 </div>
               </div>
             </div>
@@ -563,7 +598,6 @@ useEffect(() => {
                           post={postData}
                           mode="profile"
                           authorAvatar={postData.authorAvatar}
-
                           onToggleFollow={() => handleToggleFollow(postData)}
                           onToggleLike={(p, newLiked, newCount) => handleToggleLikeLocal(p, newLiked, newCount)}
                           onToggleSave={(p, newSaved, newCount) => handleToggleSaveLocal(p, newSaved, newCount)}
@@ -603,7 +637,6 @@ useEffect(() => {
                   )}
                 </section>
               </div>
-
             )}
           </main>
         </div>
