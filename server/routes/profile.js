@@ -109,5 +109,41 @@ router.get("/saved", async (req, res) => {
   }
 });
 
+router.get("/:profileId", async (req, res) => {
+  const { profileId } = req.params;
+  if (!profileId) return res.status(400).json({ error: "Missing profileId" });
+
+  try {
+    // try by user_id
+    const { data: byId, error: errById } = await supabaseAdmin
+      .from("profiles")
+      .select("*")
+      .eq("user_id", profileId)
+      .single();
+
+    // If we got a row, return it
+    if (byId) return res.json(byId);
+
+    // If there was an error that isn't "no rows", throw it
+    if (errById && errById.code !== "PGRST116") throw errById;
+
+    // Not found by user_id -> try username
+    const { data: byUsername, error: errByUsername } = await supabaseAdmin
+      .from("profiles")
+      .select("*")
+      .eq("username", profileId)
+      .single();
+
+    if (byUsername) return res.json(byUsername);
+
+    if (errByUsername && errByUsername.code !== "PGRST116") throw errByUsername;
+
+    // nothing found
+    return res.status(404).json({ error: "Profile not found" });
+  } catch (err) {
+    console.error("[PROFILE/:profileId] error", err);
+    return res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
 
 module.exports = router;

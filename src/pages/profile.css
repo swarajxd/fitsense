@@ -1,5 +1,5 @@
 /* FitSense scoped vars */
-/* fs-wrap â€" scoped to this page only */
+/* fs-wrap – scoped to this page only */
 .fs-wrap{
   --fs-bg:#0e0f11;
   --fs-panel:#14161a;
@@ -102,7 +102,7 @@
 }
 
 
-/* overlay sits on bottom of hero (overlapping) â€" lighter so the ::after gradient is primary */
+/* overlay sits on bottom of hero (overlapping) – lighter so the ::after gradient is primary */
 .fs-overlay{
   position:absolute;
   bottom:0;
@@ -351,36 +351,35 @@
 /* gallery wrapper (scrollable area content) */
 .fs-gallery-wrap{ padding-bottom:40px; }
 
-/* ===== profile gallery: make it look & behave like homecard grid ===== */
-
-/* Use a responsive grid that mirrors HomeCard sizing and spacing */
-/* profile.css — minimal gallery layout only (cards styled by homecard.css) */
-/* Masonry-style gallery (column-based) - dynamic spacing based on post height */
+/* ===== CSS GRID MASONRY - Max 3 columns ===== */
 .fs-gallery,
 .saved-gallery {
-  column-width: 260px;    /* ideal column width; browser will create as many columns as fit */
-  column-gap: 18px;       /* horizontal gap between columns */
-  margin-top: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(240px, calc((100% - 32px) / 3)), 1fr));
+  gap: 16px;
+  grid-auto-rows: 8px;
+  margin-top: 12px;
   width: 100%;
-  /* remove grid display so CSS columns take over */
-  display: block;
 }
 
-/* Items must be inline-block so they flow into columns correctly */
 .fs-gallery-item {
-  display: inline-block;
+  display: block;
   width: 100%;
-  margin: 0 0 18px;      /* vertical gap between items (bottom margin controls vertical spacing) */
-  break-inside: avoid;
   border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
-  vertical-align: top;
   transition: transform 180ms ease, box-shadow 180ms ease;
-
+  background: transparent;
 }
 
-/* image fills card as before */
+/* Ensure images inside maintain aspect ratio */
+.fs-gallery-item img,
+.fs-gallery-item .homecard-img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .fs-gallery-item img,
 .fs-gallery-item .homecard-img {
   display: block;
@@ -390,32 +389,19 @@
   border-radius: 14px;
 }
 
-/* hover lift (slightly stronger to match card feel) */
-
-
-/* overlay behavior preserved — ensure overlay selector matches HomeCard markup */
 .fs-gallery-item .fs-post-overlay {
   border-radius: 14px;
 }
 
-/* responsive tweaks: change column-width on smaller screens */
+/* responsive grid adjustments */
 @media (max-width: 1200px) {
-  .fs-gallery { column-width: 220px; column-gap: 14px; }
-  .fs-gallery-item { margin-bottom: 14px; }
-}
-@media (max-width: 900px) {
-  .fs-gallery { column-width: 200px; column-gap: 12px; }
-  .fs-gallery-item { margin-bottom: 12px; }
-}
-@media (max-width: 520px) {
-  .fs-gallery { column-width: 100%; column-gap: 12px; }
-  .fs-gallery-item { width: 100%; margin-bottom: 12px; display: block; }
+  .fs-gallery,
+  .saved-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
 }
 
-/* ======================== END POST OVERLAY STYLES ======================== */
-
-/* gallery responsiveness */
-@media (max-width:1200px){ .fs-gallery{ column-width:220px } }
 @media (max-width: 900px) {
   /* on mobile restore normal page scrolling (avoid locked viewport) */
   .fs-wrap {
@@ -435,6 +421,12 @@
     height: auto;
     margin-left: 0;
   }
+
+  .fs-gallery,
+  .saved-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
   
   /* Adjust post overlay for mobile */
   .fs-post-overlay {
@@ -452,7 +444,10 @@
 }
 
 @media (max-width:520px){ 
-  .fs-gallery{ column-width:100% }
+  .fs-gallery,
+  .saved-gallery {
+    grid-template-columns: 1fr;
+  }
   
   .fs-post-creator-avatar {
     width: 32px;
@@ -567,15 +562,4 @@
   background: #ff6a00; /* use accent color instead of plain white */
   bottom: -8px;
   border-radius: 2px;
-}
-
-.fs-gallery,
-.saved-gallery {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr); /* Force exactly 3 columns */
-
-  gap: 20px; /* Increased gap for better spacing */
-  margin-top: 6px;
-  width: 100%;           /* stretch full width */
-  align-items: start;
 }

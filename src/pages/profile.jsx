@@ -5,9 +5,10 @@ import Header from "../components/header";
 import HomeCard from "../components/HomeCard";
 import profilePicFallback from "../assets/profilepic.jpg";
 import EditProfile from "../components/EditProfile.jsx";
-import EditPostModal from "../components/EditPostModal"; // adjust path if different
+import EditPostModal from "../components/EditPostModal";
 import { supabase } from "../lib/supabaseClient";
 import { useUser, useAuth } from "@clerk/clerk-react";
+import { useParams } from "react-router-dom";
 
 // Local fallbacks (kept for UI if DB unreachable)
 import post1 from "../assets/post1.jpg";
@@ -32,6 +33,7 @@ function prettyId(id) {
 export default function Profile() {
   const { user } = useUser();
   const { getToken } = useAuth();
+  const { profileId } = useParams(); // e.g. taha418 or user_32Jf50rnysWyuoHQK9whjQtXljX
 
   const [profile, setProfile] = useState(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
@@ -49,98 +51,149 @@ export default function Profile() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [processingDelete, setProcessingDelete] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
-const [followingCount, setFollowingCount] = useState(0);
-const [isLoadingCounts, setIsLoadingCounts] = useState(true);
-//fetch followers/following counts
-useEffect(() => {
-  if (!profile?.user_id) return;
-  let cancelled = false;
-  (async () => {
-    setIsLoadingCounts(true);
-    try {
-      const { count: followers } = await supabase
-        .from("follows")
-        .select("id", { count: "exact", head: true })
-        .eq("followee_id", profile.user_id);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
 
-      const { count: following } = await supabase
-        .from("follows")
-        .select("id", { count: "exact", head: true })
-        .eq("follower_id", profile.user_id);
-
-      if (!cancelled) {
-        setFollowersCount(followers ?? 0);
-        setFollowingCount(following ?? 0);
-      }
-    } catch (err) {
-      console.error("Error fetching counts:", err);
-      if (!cancelled) {
-        setFollowersCount(0);
-        setFollowingCount(0);
-      }
-    } finally {
-      if (!cancelled) setIsLoadingCounts(false);
-    }
-  })();
-  return () => { cancelled = true; };
-}, [profile?.user_id]);
-
-
-  // Fetch profile on mount (only after Clerk user is available)
+  //fetch followers/following counts
   useEffect(() => {
-    if (!user) return;
+    if (!profile?.user_id) return;
     let cancelled = false;
+    (async () => {
+      setIsLoadingCounts(true);
+      try {
+        const { count: followers } = await supabase
+          .from("follows")
+          .select("id", { count: "exact", head: true })
+          .eq("followee_id", profile.user_id);
+
+        const { count: following } = await supabase
+          .from("follows")
+          .select("id", { count: "exact", head: true })
+          .eq("follower_id", profile.user_id);
+
+        if (!cancelled) {
+          setFollowersCount(followers ?? 0);
+          setFollowingCount(following ?? 0);
+        }
+      } catch (err) {
+        console.error("Error fetching counts:", err);
+        if (!cancelled) {
+          setFollowersCount(0);
+          setFollowingCount(0);
+        }
+      } finally {
+        if (!cancelled) setIsLoadingCounts(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile?.user_id]);
+
+  // Combined profile fetch effect:
+  // - If URL has :profileId -> fetch that profile via /api/profile/:profileId
+  // - Otherwise fetch current logged-in user's profile via /api/profile?userId=
+  useEffect(() => {
+    let cancelled = false;
+    const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:7000";
 
     (async () => {
       setIsLoadingUser(true);
+
       try {
-        const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:7000";
-        const resp = await fetch(`${base}/api/profile?userId=${encodeURIComponent(user.id)}`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" }
-        });
+        if (profileId) {
+          // Fetch profile by URL param (could be user_id or username)
+          const resp = await fetch(`${base}/api/profile/${encodeURIComponent(profileId)}`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          });
 
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data && Object.keys(data).length && !cancelled) {
-            const fallbackUsername =
-              data.username ||
-              user?.username ||
-              (user?.fullName ? user.fullName.replace(/\s+/g, "_").toLowerCase() : null) ||
-              prettyId(user.id);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (!cancelled && data && Object.keys(data).length) {
+              setProfile({
+                name: data.name || data.full_name || data.username || prettyId(data.user_id ?? profileId),
+                username: data.username || prettyId(data.user_id ?? profileId),
+                bio: data.bio || "",
+                profilePic: data.avatar_url || profilePicFallback,
+                public_id: data.public_id || data.publicId || null,
+                user_id: data.user_id || profileId,
+              });
+              setIsLoadingUser(false);
+              return;
+            }
+          }
 
+          // fallback if lookup failed
+          if (!cancelled) {
             setProfile({
-              name: data.name || user?.fullName || "Taha Sayed",
-              username: fallbackUsername,
-              bio: data.bio || "Follow for more outfit inspiration",
-              profilePic: data.avatar_url ,
-              public_id: data.public_id || data.publicId || null,
-              user_id: data.user_id || user.id
+              name: prettyId(profileId),
+              username: prettyId(profileId),
+              bio: "",
+              profilePic: profilePicFallback,
+              user_id: profileId,
             });
             setIsLoadingUser(false);
-            return;
           }
+          return;
+        }
+
+        // No profileId in URL -> fetch current logged-in user's profile
+        if (!user) {
+          setIsLoadingUser(false);
+          return;
+        }
+
+        try {
+          const resp = await fetch(`${base}/api/profile?userId=${encodeURIComponent(user.id)}`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          });
+
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && Object.keys(data).length && !cancelled) {
+              const fallbackUsername =
+                data.username ||
+                user?.username ||
+                (user?.fullName ? user.fullName.replace(/\s+/g, "_").toLowerCase() : null) ||
+                prettyId(user.id);
+
+              setProfile({
+                name: data.name || user?.fullName || "Taha Sayed",
+                username: fallbackUsername,
+                bio: data.bio || "Follow for more outfit inspiration",
+                profilePic: data.avatar_url,
+                public_id: data.public_id || data.publicId || null,
+                user_id: data.user_id || user.id
+              });
+              setIsLoadingUser(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn("Could not fetch saved profile, using defaults.", err);
+        }
+
+        // final fallback: use clerk user object
+        if (!cancelled) {
+          setProfile({
+            name: user?.fullName || "Taha Sayed",
+            username: user?.username || prettyId(user?.id),
+            bio: "Follow for more outfit inspiration",
+            profilePic: profilePicFallback,
+            user_id: user?.id
+          });
+          setIsLoadingUser(false);
         }
       } catch (err) {
-        console.warn("Could not fetch saved profile, using defaults.", err);
-      }
-
-      if (!cancelled) {
-        setProfile({
-          name: user?.fullName || "Taha Sayed",
-          username: user?.username || prettyId(user?.id),
-          bio: "Follow for more outfit inspiration",
-          profilePic: profilePicFallback,
-          user_id: user?.id
-        });
-        setIsLoadingUser(false);
+        console.error("Profile fetch error:", err);
+        if (!cancelled) setIsLoadingUser(false);
       }
     })();
 
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, profileId]);
 
-  // keep near other useEffects in profile.jsx
+  // If profilePic updates, patch authorAvatar in posts/savedPosts
   useEffect(() => {
     if (!profile || !profile.profilePic) return;
 
@@ -167,9 +220,10 @@ useEffect(() => {
     );
   }, [profile?.profilePic, profile?.user_id]);
 
-  // Fetch posts uploaded by current user from Supabase (client-side)
+  // Fetch posts for the profile being viewed using your backend API
   useEffect(() => {
-    if (!user) {
+    // wait until profile is resolved (so we have profile.user_id)
+    if (!profile?.user_id) {
       setIsLoadingPosts(false);
       return;
     }
@@ -178,40 +232,31 @@ useEffect(() => {
     (async () => {
       setIsLoadingPosts(true);
       try {
-        const { data, error } = await supabase
-          .from("posts")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-
-        if (error) {
-          console.error("Error fetching posts:", error);
+        const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:7000";
+        // optional: pass viewerId (current user) so backend can mark liked:true/false
+        const viewerParam = user?.id ? `&viewerId=${encodeURIComponent(user.id)}` : "";
+        const resp = await fetch(`${base}/api/posts?userId=${encodeURIComponent(profile.user_id)}${viewerParam}`);
+        if (!resp.ok) {
+          console.error("Failed to fetch posts for profile:", resp.status, await resp.text().catch(()=>""));
           if (!cancelled) setPosts(initialPosts);
-        } else {
-          const mapped = (data || []).map((row) => {
-            const author =
-              (profile && row.user_id === profile.user_id && profile.username) ||
-              row.username ||
-              user?.username ||
-              prettyId(row.user_id);
-            const authorAvatarFromRow = row.avatar_url || row.profile_pic || null;
-
-            return {
-              id: row.id,
-              image: row.image_url || row.image_path || post1,
-              author,
-              authorAvatar: (row.user_id === user.id && profile?.profilePic) || authorAvatarFromRow || profilePicFallback,
-              likes: row.likes ?? 0,
-              liked: row.liked ?? false,
-              isFollowing: false,
-              caption: row.caption ?? "",
-              isSaved: row.is_saved ?? false,
-              tags: Array.isArray(row.tags) ? row.tags : (row.tags ? JSON.parse(row.tags) : []),
-              raw: row
-            };
-          });
-          if (!cancelled) setPosts(mapped.length ? mapped : initialPosts);
+          return;
         }
+        const json = await resp.json();
+        const mapped = (json.posts || []).map(row => ({
+          id: row.id,
+          image: row.image_url || row.image_path || post1,
+          author: row.author || prettyId(row.user_id),
+          authorAvatar: row.avatar || profile.profilePic || profilePicFallback,
+          likes: typeof row.likes === "number" ? row.likes : 0,
+          liked: Boolean(row.liked),
+          isFollowing: false,
+          caption: row.caption ?? "",
+          isSaved: row.is_saved ?? false,
+          tags: Array.isArray(row.tags) ? row.tags : (row.tags ? JSON.parse(row.tags) : []),
+          raw: row.raw ?? row // backend returns raw inside raw; be defensive
+        }));
+
+        if (!cancelled) setPosts(mapped.length ? mapped : initialPosts);
       } catch (err) {
         console.error("Exception fetching posts:", err);
         if (!cancelled) setPosts(initialPosts);
@@ -221,9 +266,9 @@ useEffect(() => {
     })();
 
     return () => { cancelled = true; };
-  }, [user]);
+  }, [profile?.user_id, user?.id]);
 
-  // Fetch posts saved by current user
+  // Fetch posts saved by current user (saved is personal so use current logged-in user)
   useEffect(() => {
     if (!user) {
       setIsLoadingSaved(false);
@@ -267,6 +312,43 @@ useEffect(() => {
       })
     );
   }, [profile]);
+
+  // Masonry layout initialization
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const galleries = document.querySelectorAll('.fs-gallery, .saved-gallery');
+
+      galleries.forEach(gallery => {
+        const items = gallery.querySelectorAll('.fs-gallery-item');
+
+        const resizeItem = (item) => {
+          const img = item.querySelector('img, .homecard-img');
+          if (!img) return;
+
+          const style = window.getComputedStyle(gallery);
+          const rowHeightPx = parseInt(style.getPropertyValue('grid-auto-rows')) || 8;
+          const gapPx = parseInt(style.getPropertyValue('gap')) || parseInt(style.getPropertyValue('grid-row-gap')) || 16;
+          const imgHeight = img.getBoundingClientRect().height;
+          const rowSpan = Math.max(1, Math.ceil((imgHeight + gapPx) / (rowHeightPx + gapPx)));
+
+          item.style.gridRowEnd = `span ${rowSpan}`;
+        };
+
+        items.forEach(item => {
+          const img = item.querySelector('img, .homecard-img');
+          if (!img) return;
+
+          if (img.complete) {
+            resizeItem(item);
+          } else {
+            img.addEventListener('load', () => resizeItem(item));
+          }
+        });
+      });
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [posts, savedPosts, mode]);
 
   // handle save from EditProfile (persists to server and updates UI)
   const handleSave = async (updatedUser) => {
@@ -374,22 +456,17 @@ useEffect(() => {
   };
 
   // Save edited fields to Supabase (optimistic UI + rollback)
-  // editedFields is an object like { caption, image }
   const handleEditSave = async (editedFields = {}, post) => {
     if (!post || !post.id) {
       alert("Invalid post to edit");
       return;
     }
 
-    // close modal immediately for responsive UX
     setEditModalOpen(false);
-
     const prev = posts;
-    // optimistic update locally
     setPosts((arr) => arr.map((p) => (p.id === post.id ? { ...p, ...editedFields } : p)));
 
     try {
-      // update only changed fields; select returned row to sync
       const { data, error } = await supabase
         .from("posts")
         .update(editedFields)
@@ -400,7 +477,6 @@ useEffect(() => {
       if (error) throw error;
 
       if (data) {
-        // merge server returned row (normalize to your front-end shape)
         setPosts((arr) => arr.map((p) => {
           if (p.id !== post.id) return p;
           return {
@@ -414,11 +490,12 @@ useEffect(() => {
     } catch (err) {
       console.error("Failed to edit post", err);
       alert("Could not save changes. Reverting.");
-      setPosts(prev); // rollback
+      setPosts(prev);
     } finally {
       setEditingPost(null);
     }
   };
+
 
   // Delete a post (optimistic remove + rollback)
   const handleDeletePost = async (post) => {
@@ -432,7 +509,6 @@ useEffect(() => {
 
     setProcessingDelete(true);
     const prev = posts;
-    // optimistic removal
     setPosts((arr) => arr.filter((p) => p.id !== post.id));
 
     try {
@@ -442,15 +518,10 @@ useEffect(() => {
         .eq("id", post.id);
 
       if (error) throw error;
-
-      // optionally: if you store images in storage and have path in post.raw.image_path, delete it too
-      // if (post.raw?.image_path) {
-      //   await supabase.storage.from('post-images').remove([post.raw.image_path]);
-      // }
     } catch (err) {
       console.error("Failed to delete post", err);
       alert("Could not delete post. Reverting.");
-      setPosts(prev); // rollback
+      setPosts(prev);
     } finally {
       setProcessingDelete(false);
     }
@@ -466,8 +537,10 @@ useEffect(() => {
   };
 
   if (isLoadingUser || !profile) {
+    
     return (
       <>
+      
         <Header />
         <div style={{ padding: 24 }}>Loading profile…</div>
       </>
@@ -476,9 +549,11 @@ useEffect(() => {
 
   const displayUsername = profile.username || (user?.username ?? prettyId(user?.id));
   const userPosts = posts.filter((post) => {
-    if (post.raw && post.raw.user_id) return post.raw.user_id === user.id;
+    if (post.raw && post.raw.user_id) return post.raw.user_id === profile.user_id;
     return post.author === profile.username;
   });
+  const isOwnProfile = user && profile && String(profile.user_id) === String(user.id);
+
 
   return (
     <>
@@ -498,30 +573,37 @@ useEffect(() => {
                   <div className="fs-handle">@{displayUsername}</div>
                   <div className="fs-bio">{profile.bio}</div>
 
-                 <div className="fs-stats">
-                  <div className="fs-stat">
-                    <b>{userPosts.length}</b>
-                    <span>Posts</span>
+                  <div className="fs-stats">
+                    <div className="fs-stat">
+                      <b>{userPosts.length}</b>
+                      <span>Posts</span>
+                    </div>
+                    <div className="fs-stat">
+                      <b>{isLoadingCounts ? "…" : followersCount}</b>
+                      <span>Followers</span>
+                    </div>
+                    <div className="fs-stat">
+                      <b>{isLoadingCounts ? "…" : followingCount}</b>
+                      <span>Following</span>
+                    </div>
                   </div>
-                  <div className="fs-stat">
-                    <b>{isLoadingCounts ? "…" : followersCount}</b>
-                    <span>Followers</span>
-                  </div>
-                  <div className="fs-stat">
-                    <b>{isLoadingCounts ? "…" : followingCount}</b>
-                    <span>Following</span>
-                  </div>
-                </div>
-
 
                   <div className="fs-actions">
                     <button className="fs-btn fs-btn-follow">Share</button>
-                    <button
-                      className="fs-btn fs-btn-ghost"
-                      onClick={() => setIsEditing(true)}
-                    >
-                      Edit Profile
-                    </button>
+
+                    {/* show Edit Profile only for the current logged-in user */}
+                    {profile.user_id === user?.id ? (
+                      <button
+                        className="fs-btn fs-btn-ghost"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        Edit Profile
+                      </button>
+                    ) : (
+                      <button className="fs-btn fs-btn-follow" onClick={() => handleToggleFollow({ author: profile.username })}>
+                        Follow
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -545,11 +627,10 @@ useEffect(() => {
                   >
                     Saved ({savedPosts.length})
                   </button>
-
                 </div>
               </div>
             </div>
-
+                    
             {/* POSTS */}
             {mode === "posts" ? (
               <div className="fs-gallery-wrap">
@@ -558,12 +639,15 @@ useEffect(() => {
                     <div style={{ padding: 24 }}>Loading posts…</div>
                   ) : userPosts.length > 0 ? (
                     userPosts.map((postData) => (
+                      
+
                       <div key={postData.id} className="fs-gallery-item">
+                      
                         <HomeCard
                           post={postData}
                           mode="profile"
+                          isOwnProfile={isOwnProfile} 
                           authorAvatar={postData.authorAvatar}
-
                           onToggleFollow={() => handleToggleFollow(postData)}
                           onToggleLike={(p, newLiked, newCount) => handleToggleLikeLocal(p, newLiked, newCount)}
                           onToggleSave={(p, newSaved, newCount) => handleToggleSaveLocal(p, newSaved, newCount)}
@@ -590,6 +674,7 @@ useEffect(() => {
                         <HomeCard
                           post={postData}
                           mode="profile"
+                          isOwnProfile={isOwnProfile} 
                           onToggleFollow={() => handleToggleFollow(postData)}
                           onToggleLike={(p, newLiked, newCount) => handleToggleLikeLocal(p, newLiked, newCount)}
                           onToggleSave={(p, newSaved, newCount) => handleToggleSaveLocal(p, newSaved, newCount)}
@@ -603,7 +688,6 @@ useEffect(() => {
                   )}
                 </section>
               </div>
-
             )}
           </main>
         </div>

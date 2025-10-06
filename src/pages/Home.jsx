@@ -229,29 +229,21 @@ function toggleSave(postOrId, newSaved, newCount) {
                 transition={{ duration: 0.25, delay: index * 0.02 }}
               >
                 <HomeCard
-                  post={{
-                    id: post.id,
-                    image: post.image_url || post.image_path,
-                    author: post.author || post.user_id || 'user',
-                    avatar: post.avatar || null,
-                    isFollowing: post.isFollowing || false,
-                        liked: Boolean(post.liked),
-                        likes: typeof post.likes === 'number' ? post.likes : (post.raw?.likes ?? 0),
-                    caption: post.caption || '',
-                      saved: Boolean(post.saved),
-                      saves: typeof post.saves === 'number' ? post.saves : 0,
-                      raw: post
-
-                  }}
-                  mode={mode}
-                    onToggleFollow={() => toggleFollow(post.user_id)}
-                    
-
-                    onToggleLike={(p, newLiked, newCount) => toggleLike(p, newLiked, newCount)}
-
-                    onToggleSave={(p, newSaved, newCount) => toggleSave(p, newSaved, newCount)}
-
-                />
+                key={post.id}
+                post={{
+                  id: post.id,
+                  image: post.image_url || post.image_path || post.image || post.imageUrl,
+                  author: post.author || post.username || post.profiles?.username || post.user_name || post.user_id,
+                  avatar: post.avatar || post.profiles?.avatar_url || post.authorAvatar || post.profilePic || null,
+                  likes: post.likes ?? 0,
+                  liked: post.liked ?? false,
+                  caption: post.caption ?? "",
+                  isSaved: post.isSaved ?? post.saved ?? false,
+                  raw: post, // keep raw row for owner id lookups
+                }}
+                mode={mode}
+                authorId={ post.user_id || post.userId || post.raw?.user_id || post.authorId || post.profiles?.user_id || post.profiles?.id || post.author }
+              />
               </motion.div>
             ))
           )}
