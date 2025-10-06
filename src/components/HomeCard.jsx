@@ -1,15 +1,29 @@
 // src/components/HomeCard.jsx
 import React, { useState, useRef, useEffect } from "react";
 import "./HomeCard.css";
-import { FaHeart, FaRegHeart, FaShareAlt, FaEllipsisV, FaRegBookmark, FaBookmark } from "react-icons/fa";
+import {
+  FaHeart,
+  FaRegHeart,
+  FaShareAlt,
+  FaEllipsisV,
+  FaRegBookmark,
+  FaBookmark,
+} from "react-icons/fa";
+import profilePicFallback from "../assets/profilepic.jpg"; // adjust path if needed
+
 import { useUser } from "@clerk/clerk-react";
 
 export default function HomeCard({
   post,
   mode = "forYou",
+    authorAvatar = null,         // <-- explicit prop (only used in profile mode)
+
   onToggleFollow = () => {},
   onToggleLike = () => {},
   onShare = () => {},
+  onToggleSave = () => {},   // <-- accept this prop (was missing)
+  onEdit = () => {},         // <-- new: edit handler
+  onDelete = () => {},       // <-- new: delete handler
 }) {
   const { user } = useUser();
   const [hovered, setHovered] = useState(false);
@@ -19,30 +33,25 @@ export default function HomeCard({
   const [liked, setLiked] = useState(Boolean(post.liked));
   const menuRef = useRef(null);
 
-  // Keep local isFollowing in sync with parent prop
   useEffect(() => {
     setIsFollowing(Boolean(post.isFollowing));
-    // optional debug:
-    // console.log('[HomeCard] sync prop->local', { user_id: post?.user_id, prop: post?.isFollowing });
   }, [post.isFollowing, post.user_id]);
-    // Keep local liked in sync with parent prop
+
   useEffect(() => {
     setLiked(Boolean(post.liked));
-    // optional debug:
-    // console.log('[HomeCard] sync liked prop->local', { postId: post?.id, liked: post?.liked });
   }, [post.liked, post.id]);
-  // Keep local saved in sync with parent prop
-useEffect(() => {
-  setSaved(Boolean(post.saved || post.isSaved));
-}, [post.saved, post.isSaved, post.id]);
 
+  useEffect(() => {
+    setSaved(Boolean(post.saved || post.isSaved));
+  }, [post.saved, post.isSaved, post.id]);
 
   const followLabel = mode === "following" ? "Unfollow" : "Follow";
   const rawLikes = post.likes ?? post.likeCount ?? 0;
   const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:7000";
 
   function formatCount(n) {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+    if (n >= 1_000_000)
+      return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
     if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
     return `${n}`;
   }
@@ -54,7 +63,11 @@ useEffect(() => {
       body: JSON.stringify(body),
     });
     let json;
-    try { json = await res.json(); } catch (e) { json = null; }
+    try {
+      json = await res.json();
+    } catch (e) {
+      json = null;
+    }
     if (!res.ok) {
       const msg = json?.error || json || `HTTP ${res.status}`;
       throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
@@ -70,9 +83,7 @@ useEffect(() => {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [menuOpen]);
 
-  // Robustly resolve the followee id from common property names
   function resolveFolloweeId(p) {
-    // try the most common/sane names first
     const candidates = [
       p?.user_id,
       p?.userId,
@@ -108,86 +119,86 @@ useEffect(() => {
     }
 
     const action = isFollowing ? "/api/interactions/unfollow" : "/api/interactions/follow";
-    // optimistic update
     setIsFollowing((s) => !s);
     try {
       await postJson(action, { followerId, followeeId });
-      // Inform parent. We keep calling the original signature (post, newState)
-      // Parent can decide to ignore arguments or handle them as needed.
-      try { onToggleFollow(post, !isFollowing); } catch (e) { /* swallow */ }
+      try { onToggleFollow(post, !isFollowing); } catch (e) {}
     } catch (err) {
       console.error("Follow error", err);
-      setIsFollowing((s) => !s); // revert
+      setIsFollowing((s) => !s);
       alert("Could not update follow status: " + err.message);
     }
   };
 
-// inside HomeCard.jsx - replace existing handleLike
-const handleLike = async (e) => {
-  e?.stopPropagation?.();
-  if (!user) { alert("Please sign in to like posts."); return; }
+  const handleLike = async (e) => {
+    e?.stopPropagation?.();
+    if (!user) {
+      alert("Please sign in to like posts.");
+      return;
+    }
 
-  const endpoint = liked ? "/api/interactions/unlike" : "/api/interactions/like";
-
-  // optimistic local flip of the heart
-  setLiked((s) => !s);
-
-  try {
-    // read server response (should include likes_count and liked)
-    const res = await postJson(endpoint, { userId: user.id, postId: post.id });
-
-    // server response shape assumed: { ok: true, liked: boolean, likes_count: number }
-    const newCount = (res && typeof res.likes_count === 'number') ? res.likes_count : null;
-    const newLiked  = (res && typeof res.liked === 'boolean') ? res.liked : !liked;
-
-    // inform parent with authoritative info (parent will update posts state)
-    try { onToggleLike(post, newLiked, newCount); } catch (e) { /* ignore */ }
-  } catch (err) {
-    console.error("Like error", err);
-    // rollback optimistic flip
+    const endpoint = liked ? "/api/interactions/unlike" : "/api/interactions/like";
     setLiked((s) => !s);
-    alert("Could not update like: " + (err?.message || err));
-  }
-};
 
+    try {
+      const res = await postJson(endpoint, { userId: user.id, postId: post.id });
+      const newCount = (res && typeof res.likes_count === "number") ? res.likes_count : null;
+      const newLiked = (res && typeof res.liked === "boolean") ? res.liked : !liked;
+      try { onToggleLike(post, newLiked, newCount); } catch (e) {}
+    } catch (err) {
+      console.error("Like error", err);
+      setLiked((s) => !s);
+      alert("Could not update like: " + (err?.message || err));
+    }
+  };
 
-const handleSave = async (e) => {
-  e?.stopPropagation?.();
-  if (!user) { alert("Please sign in to save posts."); return; }
+  const handleSave = async (e) => {
+    e?.stopPropagation?.();
+    if (!user) {
+      alert("Please sign in to save posts.");
+      return;
+    }
 
-  const endpoint = saved ? "/api/interactions/unsave" : "/api/interactions/save";
+    const endpoint = saved ? "/api/interactions/unsave" : "/api/interactions/save";
+    setSaved((s) => !s);
 
-  // optimistic flip
-  setSaved(s => !s);
+    try {
+      const res = await postJson(endpoint, { userId: user.id, postId: post.id });
+      const newSaved = (res && typeof res.saved === "boolean") ? res.saved : !saved;
+      const newCount = (res && typeof res.saves_count === "number") ? res.saves_count : null;
+      try { onToggleSave(post, newSaved, newCount); } catch (e) {}
+      setSaved(Boolean(newSaved));
+    } catch (err) {
+      console.error("Save error", err);
+      setSaved((s) => !s);
+      alert("Could not update saved state: " + (err?.message || err));
+    }
+  };
 
-  try {
-    const res = await postJson(endpoint, { userId: user.id, postId: post.id });
-    const newSaved = (res && typeof res.saved === 'boolean') ? res.saved : !saved;
-    const newCount = (res && typeof res.saves_count === 'number') ? res.saves_count : null;
+  // New local wrappers for edit/delete to stop propagation and call props
+  const handleEditClick = (e) => {
+    e?.stopPropagation?.();
+    if (typeof onEdit === "function") onEdit(post);
+  };
 
-    // inform parent (implement onToggleSave in parent)
-    try { onToggleSave(post, newSaved, newCount); } catch (e) { /* ignore */ }
-
-    // ensure local state matches authoritative returned value
-    setSaved(Boolean(newSaved));
-  } catch (err) {
-    console.error("Save error", err);
-    // rollback
-    setSaved(s => !s);
-    alert("Could not update saved state: " + (err?.message || err));
-  }
-};
-
+  const handleDeleteClick = (e) => {
+    e?.stopPropagation?.();
+    if (typeof onDelete === "function") onDelete(post);
+  };
 
   return (
     <article
-      className="homecard"
+      className={`homecard ${mode === "profile" ? "profile-mode" : ""}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       aria-label={`Post by ${post.author ?? post.user_id}`}
     >
       <div className="img-wrap">
-        <img src={post.image || post.image_url || post.imagePath} alt={`post-${post.id}`} className="homecard-img" />
+        <img
+          src={post.image || post.image_url || post.imagePath}
+          alt={`post-${post.id}`}
+          className="homecard-img"
+        />
 
         <div className={`menu-wrap ${hovered || menuOpen ? "visible" : ""}`} ref={menuRef}>
           <button
@@ -195,7 +206,7 @@ const handleSave = async (e) => {
             aria-haspopup="true"
             aria-expanded={menuOpen}
             aria-label="More options"
-            onClick={() => setMenuOpen((s) => !s)}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((s) => !s); }}
           >
             <FaEllipsisV />
           </button>
@@ -205,7 +216,7 @@ const handleSave = async (e) => {
               <button
                 type="button"
                 className="menu-item"
-                onClick={() => { setMenuOpen(false); onShare(post); }}
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onShare(post); }}
                 role="menuitem"
               >
                 <FaShareAlt className="menu-item-icon" /> <span>Share</span>
@@ -217,31 +228,84 @@ const handleSave = async (e) => {
                 onClick={(e) => { handleSave(e); setMenuOpen(false); }}
                 role="menuitem"
               >
-                {saved ? <><FaBookmark className="menu-item-icon" /><span>Saved</span></> :
-                         <><FaRegBookmark className="menu-item-icon" /><span>Save</span></>}
+                {saved ? (
+                  <>
+                    <FaBookmark className="menu-item-icon" /> <span>Saved</span>
+                  </>
+                ) : (
+                  <>
+                    <FaRegBookmark className="menu-item-icon" /> <span>Save</span>
+                  </>
+                )}
               </button>
+
+              {/* If in profile mode expose Edit/Delete in the dropdown too (useful for mobile) */}
+              {mode === "profile" && (
+                <>
+                  <button
+                    type="button"
+                    className="menu-item"
+                    onClick={(e) => { handleEditClick(e); setMenuOpen(false); }}
+                    role="menuitem"
+                  >
+                    <span>Edit</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="menu-item destructive"
+                    onClick={(e) => { handleDeleteClick(e); setMenuOpen(false); }}
+                    role="menuitem"
+                  >
+                    <span>Delete</span>
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
 
         {hovered && (
-          <div className="top-left-info">
-            <div className="top-left-pfp-container">
-              <img src={post.avatar || post.profilePic || "/pfp.jpg"} alt="pfp" className="top-left-pfp" />
-            </div>
-            <div className="top-left-username">{post.author ?? post.user_id}</div>
-          </div>
-        )}
+  <div className="top-left-info">
+    <div className="top-left-pfp-container">
+      {/* compute avatarSrc: only prefer resolved profile avatar in profile mode */}
+      <img
+        src={
+          mode === "profile"
+            ? (authorAvatar || post.authorAvatar || post.avatar || post.profilePic || profilePicFallback)
+            : (post.avatar || post.profilePic || profilePicFallback)
+        }
+        alt={post.author ? `${post.author} avatar` : "avatar"}
+        className="top-left-pfp"
+        onError={(e) => {
+          e.currentTarget.onerror = null;
+          e.currentTarget.src = profilePicFallback;
+        }}
+        loading="lazy"
+      />
+    </div>
+    <div className="top-left-username">{post.author ?? post.user_id}</div>
+  </div>
+)}
+
 
         <div className={`homecard-overlay ${hovered ? "visible" : ""}`}>
           <div className="overlay-actions">
-            <button
-              className={`btn-follow ${mode === "following" && isFollowing ? "following" : ""}`}
-              onClick={handleFollow}
-              aria-pressed={isFollowing}
-            >
-              {isFollowing ? "Unfollow" : followLabel}
-            </button>
+            {/* Replace follow with Edit/Delete in profile mode */}
+            {mode === "profile" ? (
+              <div className="profile-actions">
+                <button className="btn-edit" onClick={handleEditClick} aria-label="Edit post">Edit</button>
+                <button className="btn-delete" onClick={handleDeleteClick} aria-label="Delete post">Delete</button>
+              </div>
+            ) : (
+              <button
+                className={`btn-follow ${mode === "following" && isFollowing ? "following" : ""}`}
+                onClick={(e) => { e?.stopPropagation?.(); handleFollow(e); }}
+                aria-pressed={isFollowing}
+              >
+                {isFollowing ? "Unfollow" : followLabel}
+              </button>
+            )}
 
             <div className="right-actions">
               <div className="likes-count" aria-hidden>
@@ -250,15 +314,13 @@ const handleSave = async (e) => {
 
               <button
                 className="btn-like"
-                onClick={handleLike}
+                onClick={(e) => { e?.stopPropagation?.(); handleLike(e); }}
                 aria-pressed={liked}
                 aria-label={liked ? "Unlike" : "Like"}
                 title={liked ? "Unlike" : "Like"}
               >
                 {liked ? <FaHeart /> : <FaRegHeart />}
               </button>
-
-              
             </div>
           </div>
         </div>

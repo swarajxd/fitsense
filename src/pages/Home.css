@@ -2,7 +2,6 @@
   --app-header-height: 64px;
 }
 
-/* Force dark app background everywhere (fixes stray white areas) */
 
 /* keep toggle lower so cards start below it */
 .home-top-row {
@@ -10,7 +9,7 @@
   background: #000;
   padding-top: calc(var(--app-header-height) + 12px);
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+
   z-index: 2;
 }
 
@@ -33,6 +32,7 @@
   cursor: pointer;
   font-size: 14px;
   position: relative;
+
 }
 
 .mode-btn.active { color: #fff; }

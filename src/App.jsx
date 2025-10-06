@@ -14,6 +14,7 @@ import Inbox from "./pages/Inbox.jsx";
 
 // Clerk imports
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
+import AiRecognition from "./pages/AiRecognition.jsx";
 
 function App() {
   return (
@@ -29,7 +30,7 @@ function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/" element={<MVP />} />
         <Route path="/create" element={<Create />} />
-        <Route path="/AiChat" element={<AiChat />} />
+        <Route path="/AiChat" element={<AiRecognition />} />
         <Route path="/inbox" element={<Inbox />} />
         
       </Routes>
