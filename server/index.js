@@ -357,6 +357,7 @@ function saveMessagesFile() {
 function saveConvosFile() {
   try {
     fs.writeFileSync(CONVOS_FILE, JSON.stringify(conversationsByUser, null, 2), 'utf8');
+    console.log('Saved conversations to', CONVOS_FILE);
   } catch (err) {
     console.error('Failed to write convos file', err);
   }
@@ -582,7 +583,10 @@ app.get('/api/messages', async (req, res) => {
 // ============= GET CONVERSATIONS =============
 app.post('/api/conversations', async (req, res) => {
   // accept userId from query OR body
-  const userId = req.query.userId || req.body.userId || 'me';
+  const userId = req.query.userId || req.body.userId;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' });
+  }
   const { participantId, participantDisplayName, participantImage } = req.body;
   if (!participantId) return res.status(400).json({ error: 'participantId required' });
 
@@ -702,7 +706,6 @@ app.post('/api/messages', async (req, res) => {
   const createdAtNum = toNumericTs(req.body.createdAt || Date.now());
 
   // Prepare payload with DB-friendly fields
-  // Use both camelCase and snake_case so whichever storage layer you use can map them
   const payload = {
     id: `msg_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
     roomId,
@@ -713,10 +716,9 @@ app.post('/api/messages', async (req, res) => {
     created_at: createdAtNum,  // helpful if your Postgres layer expects snake_case
   };
 
-  // Save to Mongo or file/in-memory fallback
+  // --- Save message to Mongo (if connected) or fallback to file/in-memory ---
   if (mongoose.connection.readyState) {
     try {
-      // If you're saving to Mongo, use createdAt
       await Message.create({
         id: payload.id,
         roomId: payload.roomId,
@@ -736,10 +738,100 @@ app.post('/api/messages', async (req, res) => {
     try { saveMessagesFile(); } catch (e) { console.error('failed saving messages to disk', e); }
   }
 
-  // If you have a Postgres/Supabase layer that expects snake_case 'created_at' bigint, pass that when inserting there.
-  // For example: (pseudo)
-  // await pg.query('INSERT INTO messages (id, room_id, from_id, from_name, text, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
-  //   [payload.id, payload.roomId, payload.fromId, payload.fromName, payload.text, payload.created_at]);
+  // --- Optional: insert into Supabase messages table if configured ---
+// safer supabase fetch in GET /api/messages
+if (typeof supabase !== 'undefined' && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
+  try {
+    // adjust column names to match your table if different
+    const { data: sbRows, error: sbErr } = await supabase
+      .from('messages')
+      .select('id, room_id, from_id, from_name, text, created_at')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true })
+      .limit(10000);
+
+    if (!sbErr) {
+      // return rows as-is (supabase shape) — client normalizer accepts both snake & camel
+      return res.json({ messages: sbRows || [] });
+    } else {
+      console.warn('Supabase: failed to fetch messages', sbErr);
+      // fall through to local fallback below
+    }
+  } catch (err) {
+    console.warn('Supabase messages read error', err);
+    // fall through to fallback
+  }
+}
+
+  // ---------- IMPORTANT: Update conversation "last message" / "last message time" ----------
+  // Try all configured backends (Supabase, Mongo, file) but never crash the handler if one fails.
+  const isoTime = new Date(createdAtNum).toISOString();
+  // 1) Supabase: update conversations row if table exists
+  if (typeof supabase !== 'undefined' && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
+    try {
+      // adjust column names to match your schema (here assumed: id, last_message, last_message_time)
+      const { error: updErr } = await supabase
+        .from('conversations')
+        .update({
+          last_message: text,
+          last_message_time: isoTime
+        })
+        .eq('id', roomId);
+
+      if (updErr) {
+        console.warn('Supabase: failed updating conversation last message', updErr);
+      }
+    } catch (err) {
+      console.warn('Supabase update conv error', err);
+    }
+  }
+
+  // 2) MongoDB: set lastMessage / lastMessageTime on Conversation doc (upsert-safe)
+  if (mongoose.connection.readyState) {
+    try {
+      await Conversation.updateOne(
+        { roomId },
+        { $set: { lastMessage: text, lastMessageTime: createdAtNum } },
+        { upsert: true }
+      );
+    } catch (err) {
+      console.warn('Mongo: failed updating conversation last message', err);
+    }
+  } else {
+    // 3) File/in-memory fallback: update conversationsByUser for both participants
+    try {
+      const parts = roomId.split('_').filter(Boolean);
+      if (parts.length >= 2) {
+        const [a, b] = parts;
+        const updateForUser = (uid, otherId) => {
+          conversationsByUser[uid] = conversationsByUser[uid] || [];
+          const idx = conversationsByUser[uid].findIndex(c => c.roomId === roomId);
+          if (idx >= 0) {
+            conversationsByUser[uid][idx].lastMessage = text;
+            conversationsByUser[uid][idx].lastMessageTime = createdAtNum;
+          } else {
+            // If the convo isn't present for this user, push a minimal record
+            conversationsByUser[uid].push({
+              roomId,
+              otherId,
+              otherDisplayName: otherId === uid ? 'You' : otherId,
+              lastMessage: text,
+              lastMessageTime: createdAtNum,
+              createdAt: createdAtNum
+            });
+          }
+        };
+        updateForUser(a, b);
+        updateForUser(b, a);
+        // persist
+        try { saveConvosFile(); } catch (e) { console.error('failed saving convos to disk', e); }
+      } else {
+        // couldn't parse participants - skip
+      }
+    } catch (err) {
+      console.warn('File fallback: failed updating convos', err);
+    }
+  }
 
   // Trigger Pusher if available
   if (pusher) {
@@ -747,7 +839,7 @@ app.post('/api/messages', async (req, res) => {
       await pusher.trigger(`private-chat_${roomId}`, 'message', payload);
     } catch (err) {
       console.error('pusher trigger err:', err);
-      return res.status(500).json({ error: 'pusher error', details: String(err) });
+      // don't fail - still return the saved payload
     }
   } else {
     console.log('Message saved (Pusher disabled):', payload);

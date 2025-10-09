@@ -94,5 +94,59 @@
       "otherImage": null,
       "createdAt": 1760026550923
     }
+  ],
+  "user": [
+    {
+      "roomId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM_user_32JXwGJhsWciwbY3jrwzA39TM5O",
+      "otherId": "32C5tzaPF4tl43EYJMFYtt7MQFM",
+      "otherDisplayName": "32C5tzaPF4tl43EYJMFYtt7MQFM",
+      "lastMessage": "hi",
+      "lastMessageTime": 1760030320505,
+      "createdAt": 1760028595881
+    },
+    {
+      "roomId": "user_32JXwGJhsWciwbY3jrwzA39TM5O_user_32XV6uoK4NfGk00sOdQA1b8UvqG",
+      "otherId": "32JXwGJhsWciwbY3jrwzA39TM5O",
+      "otherDisplayName": "32JXwGJhsWciwbY3jrwzA39TM5O",
+      "lastMessage": "hi",
+      "lastMessageTime": 1760030390368,
+      "createdAt": 1760030390368
+    },
+    {
+      "roomId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM_user_32XV6uoK4NfGk00sOdQA1b8UvqG",
+      "otherId": "32C5tzaPF4tl43EYJMFYtt7MQFM",
+      "otherDisplayName": "32C5tzaPF4tl43EYJMFYtt7MQFM",
+      "lastMessage": "can u seee this",
+      "lastMessageTime": 1760030401975,
+      "createdAt": 1760030398169
+    }
+  ],
+  "32C5tzaPF4tl43EYJMFYtt7MQFM": [
+    {
+      "roomId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM_user_32JXwGJhsWciwbY3jrwzA39TM5O",
+      "otherId": "user",
+      "otherDisplayName": "user",
+      "lastMessage": "hi",
+      "lastMessageTime": 1760030320505,
+      "createdAt": 1760028595881
+    },
+    {
+      "roomId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM_user_32XV6uoK4NfGk00sOdQA1b8UvqG",
+      "otherId": "user",
+      "otherDisplayName": "user",
+      "lastMessage": "can u seee this",
+      "lastMessageTime": 1760030401975,
+      "createdAt": 1760030398169
+    }
+  ],
+  "32JXwGJhsWciwbY3jrwzA39TM5O": [
+    {
+      "roomId": "user_32JXwGJhsWciwbY3jrwzA39TM5O_user_32XV6uoK4NfGk00sOdQA1b8UvqG",
+      "otherId": "user",
+      "otherDisplayName": "user",
+      "lastMessage": "hi",
+      "lastMessageTime": 1760030390368,
+      "createdAt": 1760030390368
+    }
   ]
 }

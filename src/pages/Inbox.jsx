@@ -112,8 +112,7 @@ export default function Inbox() {
     scrollToBottom();
   }, [messagesMap, selectedRoomId, scrollToBottom]);
 
-  /* -------------------- load conversations -------------------- */
-/* -------------------- load conversations -------------------- */
+/* -------------------- load conversations (fixed) -------------------- */
 const loadConversations = useCallback(async () => {
   if (!currentUser?.id || currentUser.id === "anon") return;
   setLoading(true);
@@ -124,30 +123,80 @@ const loadConversations = useCallback(async () => {
     const json = await res.json();
     let convos = (json.conversations || []).filter(Boolean);
 
-    // Filter out self convos (defensive)
-    convos = convos.filter((c) => c.otherId && c.otherId !== currentUser.id);
+    // helper: extract otherId reliably
+    const getOtherId = (c) => {
+      if (c.otherId) return c.otherId;
+      if (c.other_id) return c.other_id;
+      if (c.participantId) return c.participantId;
+      if (c.participant_id) return c.participant_id;
+      // Supabase style: participant_a + participant_b
+      if (c.participant_a && c.participant_b) return c.participant_a === currentUser.id ? c.participant_b : c.participant_a;
+      // file fallback shape: otherId / other
+      if (c.other) return c.other;
+      return null;
+    };
 
-    // normalize fields & sort by lastMessageTime desc (fallback to createdAt)
-    const norm = convos.map((c) => ({
-      roomId: c.roomId,
-      otherId: c.otherId,
-      otherDisplayName: c.otherDisplayName || c.otherId,
-      lastMessage: c.lastMessage || "",
-      lastMessageTime: c.lastMessageTime || c.createdAt || null,
-      createdAt: c.createdAt || null,
-    }));
+    // Defensive filter: remove self convos (but compute otherId correctly)
+    convos = convos.filter((c) => {
+      const otherId = getOtherId(c);
+      return otherId && otherId !== currentUser.id;
+    });
 
-    norm.sort((a, b) => {
+    // normalize fields & build stable roomId
+    const norm = convos.map((c) => {
+      const otherId = getOtherId(c) || null;
+
+      // derive a stable roomId: prefer explicit IDs from server, else compute
+      const roomId = c.roomId || c.room_id || c.id || c.conversationId || (otherId ? makeRoomId(currentUser.id, otherId) : null);
+
+      const otherDisplayName =
+        c.otherDisplayName ||
+        c.other_display_name ||
+        c.displayName ||
+        c.display_name ||
+        c.display_name_a ||
+        c.display_name_b ||
+        c.full_name ||
+        c.username ||
+        otherId ||
+        "Unknown";
+
+      const lastMessage =
+        c.lastMessage ||
+        c.last_message ||
+        c.preview ||
+        c.last_message_text ||
+        c.last_msg ||
+        "";
+
+      const lastMessageTime =
+        c.lastMessageTime ||
+        c.last_message_time ||
+        c.last_message_at ||
+        c.last_message_ts ||
+        c.lastMessageAt ||
+        c.createdAt ||
+        c.created_at ||
+        null;
+
+      const createdAt = c.createdAt || c.created_at || null;
+
+      return { roomId, otherId, otherDisplayName, lastMessage, lastMessageTime, createdAt, _raw: c };
+    });
+
+    // Remove entries that still somehow lack a roomId
+    const filteredNorm = norm.filter((n) => !!n.roomId);
+
+    // Sort by lastMessageTime desc (fallback to createdAt)
+    filteredNorm.sort((a, b) => {
       const ta = parseToDate(a.lastMessageTime) || parseToDate(a.createdAt) || new Date(0);
       const tb = parseToDate(b.lastMessageTime) || parseToDate(b.createdAt) || new Date(0);
       return tb - ta;
     });
 
     setConversations((prev) => {
-      // keep stable ordering but prefer server list; also avoid duplicate roomIds
-      const seen = new Set(norm.map((n) => n.roomId));
-      const merged = [...norm];
-      // append any local-only convos that server didn't return (rare)
+      const seen = new Set(filteredNorm.map((n) => n.roomId));
+      const merged = [...filteredNorm];
       prev.forEach((p) => {
         if (!seen.has(p.roomId)) merged.push(p);
       });
@@ -155,9 +204,9 @@ const loadConversations = useCallback(async () => {
     });
 
     // If nothing selected or selectedRoomId isn't in the list anymore, pick first
-    const hasSelected = norm.some((c) => c.roomId === selectedRoomId);
-    if ((!selectedRoomId || !hasSelected) && norm.length > 0) {
-      setSelectedRoomId(norm[0].roomId);
+    const hasSelected = filteredNorm.some((c) => c.roomId === selectedRoomId);
+    if ((!selectedRoomId || !hasSelected) && filteredNorm.length > 0) {
+      setSelectedRoomId(filteredNorm[0].roomId);
     }
   } catch (err) {
     console.error("Failed to load conversations:", err);
@@ -296,35 +345,32 @@ const loadConversations = useCallback(async () => {
     doSearch(query);
   }, [query, doSearch]);
 
-  /* -------------------- start a conversation -------------------- */
-/* -------------------- start a conversation -------------------- */
+/* -------------------- start a conversation (robust) -------------------- */
 const startConversation = async (selectedUser) => {
   if (!selectedUser || !currentUser?.id) return;
 
-  // pick a reliable id for the other user (fallbacks if shape differs)
+  // stable id pick for the other user
   const otherId = selectedUser.id || selectedUser.userId || selectedUser.username || selectedUser.email || selectedUser.displayName;
   if (!otherId) {
-    console.warn('startConversation: selectedUser missing id:', selectedUser);
+    console.warn("startConversation: selectedUser missing id:", selectedUser);
     return;
   }
-  if (otherId === currentUser.id) return; // do not create self convo
+  if (otherId === currentUser.id) return; // don't create self convo
 
-  // desired local room id
   const desiredRoomId = makeRoomId(currentUser.id, otherId);
 
-  // If a conversation already exists locally, open it immediately
+  // If we already have this convo locally, just open it and ensure messages are loaded
   const existing = conversations.find((c) => c.roomId === desiredRoomId);
   if (existing) {
     setSelectedRoomId(desiredRoomId);
     setQuery("");
     setSearchResults([]);
-    if (!messagesMap[desiredRoomId] || messagesMap[desiredRoomId].length === 0) {
-      await loadMessages(desiredRoomId);
-    }
+    // ensure messages are loaded
+    await loadMessages(desiredRoomId);
     return;
   }
 
-  // create an optimistic convo entry and open it immediately (avoids double-click)
+  // optimistic entry so user sees the convo appear immediately
   const optimisticConv = {
     roomId: desiredRoomId,
     otherId,
@@ -335,19 +381,23 @@ const startConversation = async (selectedUser) => {
     _optimistic: true,
   };
 
+  // put optimistic at top
   setConversations((prev) =>
     [optimisticConv, ...prev.filter((c) => c.roomId !== desiredRoomId)].sort(
-      (a, b) => (parseToDate(b.lastMessageTime) || parseToDate(b.createdAt) || 0) - (parseToDate(a.lastMessageTime) || parseToDate(a.createdAt) || 0)
+      (a, b) =>
+        (parseToDate(b.lastMessageTime) || parseToDate(b.createdAt) || 0) -
+        (parseToDate(a.lastMessageTime) || parseToDate(a.createdAt) || 0)
     )
   );
 
+  // open it locally immediately
   setSelectedRoomId(desiredRoomId);
   setMessagesMap((prev) => ({ ...prev, [desiredRoomId]: prev[desiredRoomId] || [] }));
   setQuery("");
   setSearchResults([]);
   setTimeout(() => inputRef.current?.focus(), 120);
 
-  // Fire create convo request in background and reconcile server response
+  // send create convo request to server and reconcile
   try {
     const res = await fetch(`${base}/api/conversations`, {
       method: "POST",
@@ -356,7 +406,7 @@ const startConversation = async (selectedUser) => {
         userId: currentUser.id,
         participantId: otherId,
         participantDisplayName: selectedUser.username || selectedUser.displayName || otherId,
-        roomId: desiredRoomId, // server may return canonical roomId
+        roomId: desiredRoomId, // server may accept or return canonical roomId
       }),
     });
 
@@ -367,30 +417,46 @@ const startConversation = async (selectedUser) => {
     }
 
     const json = await res.json().catch(() => ({}));
-    const serverRoomId = json.roomId || desiredRoomId;
+    // server may return `roomId` or `{ roomId: '...' }` etc; prefer server value if present
+    const serverRoomId = json.roomId || json.id || desiredRoomId;
 
-    // If server returned a different roomId, migrate optimistic convo & messagesMap key
+    // If the server returned a different roomId, migrate optimistic conversation & messagesMap
     if (serverRoomId !== desiredRoomId) {
       setConversations((prev) =>
-        prev.map((c) => (c.roomId === desiredRoomId ? { ...c, roomId: serverRoomId, _optimistic: false } : c))
+        prev.map((c) =>
+          c.roomId === desiredRoomId ? { ...c, roomId: serverRoomId, _optimistic: false } : c
+        )
       );
+
       setMessagesMap((prev) => {
-        if (!prev[desiredRoomId]) return prev;
+        if (!prev[desiredRoomId]) {
+          // nothing to migrate
+          return { ...prev, [serverRoomId]: prev[serverRoomId] || [] };
+        }
         const copy = { ...prev };
-        copy[serverRoomId] = copy[desiredRoomId];
+        copy[serverRoomId] = [...(copy[serverRoomId] || []), ...(copy[desiredRoomId] || [])];
+        // remove duplicate ids and sort
+        copy[serverRoomId] = Array.from(new Map(copy[serverRoomId].map(m => [m.id, m])).values()).sort(
+          (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+        );
         delete copy[desiredRoomId];
         return copy;
       });
+
+      // ensure UI selects the canonical server room id
       setSelectedRoomId(serverRoomId);
     } else {
       // mark optimistic as confirmed
-      setConversations((prev) => prev.map((c) => (c.roomId === desiredRoomId ? { ...c, _optimistic: false } : c)));
+      setConversations((prev) =>
+        prev.map((c) => (c.roomId === desiredRoomId ? { ...c, _optimistic: false } : c))
+      );
+      setSelectedRoomId(desiredRoomId);
     }
 
-    // Now refresh server conversations so we get canonical data and ordering
+    // refresh server conversations (ensures canonical names/times)
     await loadConversations();
 
-    // Ensure messages are loaded for the (possibly migrated) room
+    // always load messages for canonical room id
     await loadMessages(serverRoomId || desiredRoomId);
   } catch (err) {
     console.error("startConversation error", err);
@@ -553,7 +619,11 @@ const startConversation = async (selectedUser) => {
                 <div
                   key={`conv-${conv.roomId}`}
                   className={`fs-list-item ${selectedRoomId === conv.roomId ? "selected" : ""}`}
-                  onClick={() => setSelectedRoomId(conv.roomId)}
+                  onClick={() => {
+                    if (!conv.roomId) return;
+                    setSelectedRoomId(conv.roomId);
+                    loadMessages(conv.roomId);
+                  }}
                   role="listitem"
                 >
                   <Avatar name={conv.otherDisplayName} />
