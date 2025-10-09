@@ -61,6 +61,13 @@
       "otherDisplayName": "You",
       "otherImage": null,
       "createdAt": 1759040438264
+    },
+    {
+      "roomId": "user_32JXwGJhsWciwbY3jrwzA39TM5O_user_32XV6uoK4NfGk00sOdQA1b8UvqG",
+      "otherId": "user_32JXwGJhsWciwbY3jrwzA39TM5O",
+      "otherDisplayName": "wafflemakerexpert",
+      "otherImage": null,
+      "createdAt": 1760026550923
     }
   ],
   "me": [
@@ -77,6 +84,15 @@
       "otherDisplayName": null,
       "otherImage": null,
       "createdAt": 1759040438264
+    }
+  ],
+  "user_32JXwGJhsWciwbY3jrwzA39TM5O": [
+    {
+      "roomId": "user_32JXwGJhsWciwbY3jrwzA39TM5O_user_32XV6uoK4NfGk00sOdQA1b8UvqG",
+      "otherId": "user_32XV6uoK4NfGk00sOdQA1b8UvqG",
+      "otherDisplayName": "You",
+      "otherImage": null,
+      "createdAt": 1760026550923
     }
   ]
 }

@@ -34,6 +34,42 @@ const supabase = createClient(
 
 console.log('Supabase initialized:', !!supabase);
 
+// Request logger (add after app.use(cors()))
+app.use((req, res, next) => {
+  try {
+    console.log(`[REQ] ${req.method} ${req.url}`, Object.keys(req.body || {}).length ? req.body : '');
+  } catch (e) {
+    console.log('[REQ] log err', e && e.message);
+  }
+  next();
+});
+
+// Utility to list registered routes (call before app.listen)
+function printRegisteredRoutes() {
+  try {
+    const routes = [];
+    app._router && app._router.stack.forEach((layer) => {
+      if (layer.route && layer.route.path) {
+        const methods = Object.keys(layer.route.methods).join(',');
+        routes.push(`${methods.toUpperCase()} ${layer.route.path}`);
+      } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
+        // mounted routers - attempt to show mount + path
+        layer.handle.stack.forEach((l) => {
+          if (l.route && l.route.path) {
+            const methods = Object.keys(l.route.methods).join(',');
+            routes.push(`${methods.toUpperCase()} ${l.route.path}`);
+          }
+        });
+      }
+    });
+    console.log('--- Registered routes ---');
+    routes.forEach(r => console.log(r));
+    console.log('-------------------------');
+  } catch (e) {
+    console.warn('Could not enumerate routes:', e && e.message);
+  }
+}
+
 // Helper to safely mount routers
 function safeMount(mountPath, moduleOrName) {
   let mod = moduleOrName;
@@ -414,262 +450,325 @@ app.post('/api/generate-outfit-image', async (req, res) => {
   }
 });
 /* ----------------- /api/users ----------------- */
-
 app.get('/api/users', async (req, res) => {
+  const q = (req.query.q || '').trim();
   try {
-    const q = (req.query.q || '').trim();
-    
-    if (!process.env.CLERK_SECRET_KEY || !clerkClient) {
-      const qlc = q.toLowerCase();
-      const filtered = demoUsers.filter(u =>
-        !qlc ||
-        (u.displayName || '').toLowerCase().includes(qlc) ||
-        (u.username || '').toLowerCase().includes(qlc)
-      );
-      return res.json(filtered);
+    // 1) Clerk if available
+    if (clerkClient) {
+      try {
+        const list = q ? await clerkClient.users.getUserList({ query: q, limit: 50 }) : await clerkClient.users.getUserList({ limit: 20 });
+        const out = list.map(u => ({
+          id: u.id,
+          username: u.username || (u.primaryEmailAddress && u.primaryEmailAddress.emailAddress) || null,
+          displayName: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.username || null,
+          imageUrl: u.profileImageUrl || null
+        }));
+        return res.json(out);
+      } catch (e) {
+        console.warn('Clerk lookup failed, falling back:', e && e.message);
+      }
     }
 
-    const list = q
-      ? await clerkClient.users.getUserList({ query: q, limit: 50 })
-      : await clerkClient.users.getUserList({ limit: 20 });
+    // 2) Supabase profiles table (if exists)
+    if (typeof supabase !== 'undefined' && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
+      // adjust column names to your profiles schema
+      const filter = q ? `username.ilike.%${q}%` : null;
+      let query = supabase.from('profiles').select('id, username, full_name, avatar_url').limit(50);
+      if (q) query = query.ilike('username', `%${q}%`).or(`full_name.ilike.%${q}%`);
+      const { data, error } = await query;
+      if (!error) {
+        const out = (data || []).map(p => ({
+          id: p.id,
+          username: p.username || null,
+          displayName: p.full_name || p.username || p.id,
+          imageUrl: p.avatar_url || null
+        }));
+        return res.json(out);
+      } else {
+        console.warn('Supabase profiles lookup error', error);
+      }
+    }
 
-    const out = list.map(u => ({
-      id: u.id,
-      username: u.username || (u.primaryEmailAddress && u.primaryEmailAddress.emailAddress) || null,
-      displayName: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.username || null,
-      imageUrl: u.profileImageUrl || null
-    }));
-    return res.json(out);
+    // 3) demo fallback
+    const qlc = q.toLowerCase();
+    const filtered = demoUsers.filter(u =>
+      !qlc ||
+      (u.displayName || '').toLowerCase().includes(qlc) ||
+      (u.username || '').toLowerCase().includes(qlc)
+    );
+    return res.json(filtered);
   } catch (err) {
     console.error('users search error', err);
     return res.status(500).json({ error: err?.message || 'users search failed' });
   }
 });
 
-// ============= GET CONVERSATIONS =============
-app.get('/api/conversations', async (req, res) => {
-  const userId = req.query.userId;
-  
-  if (!userId || userId === 'anon') {
-    return res.status(400).json({ error: 'Valid userId required' });
+/* ---------- debug: print registered routes (optional) ---------- */
+function printRegisteredRoutes() {
+  if (!app || !app._router) return;
+  const routes = [];
+  app._router.stack.forEach(layer => {
+    if (layer.route && layer.route.path) {
+      const methods = Object.keys(layer.route.methods).join(',').toUpperCase();
+      routes.push(`${methods} ${layer.route.path}`);
+    } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
+      layer.handle.stack.forEach(l => {
+        if (l.route && l.route.path) {
+          const methods = Object.keys(l.route.methods).join(',').toUpperCase();
+          routes.push(`${methods} ${l.route.path}`);
+        }
+      });
+    }
+  });
+  console.log('Registered routes:');
+  routes.forEach(r => console.log('  ', r));
+}
+// ============= GET MESSAGES FOR A ROOM =============
+app.get('/api/messages', async (req, res) => {
+  const { roomId } = req.query;
+  if (!roomId) return res.status(400).json({ error: 'roomId required' });
+
+  console.log(`[GET /api/messages] roomId=${roomId}`);
+
+  // If Supabase configured, try it first
+  // --- also insert into Supabase if we have a service role key configured ---
+  if (typeof supabase !== 'undefined' && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
+    try {
+      // Use ISO string for timestamptz column
+      const { data: sbData, error: sbErr } = await supabase
+        .from('messages')
+        .insert([{
+          id: payload.id,
+          room_id: payload.roomId,
+          from_id: payload.fromId,
+          from_name: payload.fromName,
+          text: payload.text,
+          created_at: new Date(payload.createdAt).toISOString()
+        }])
+        .select()
+        .single()
+        ;
+      if (sbErr) {
+        // don't fail entire request, just warn
+        console.warn('Supabase insert warning (messages):', sbErr);
+      } else {
+        // optionally, if you want to use the canonical server values from supabase
+        // you could set payload.created_at = sbData.created_at;
+      }
+    } catch (err) {
+      console.error('Supabase insert error (messages):', err);
+    }
   }
 
+  // Fallback: return messages from in-memory / file store
   try {
-    // Query conversations where user is either participant_a or participant_b
-    const { data: conversations, error } = await supabase
-      .from('conversations')
-      .select('*')
-      .or(`participant_a.eq.${userId},participant_b.eq.${userId}`)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Supabase error fetching conversations:', error);
-      return res.status(500).json({ error: 'Failed to load conversations', details: error.message });
-    }
-
-    // Transform conversations to include other participant info
-    const transformedConversations = (conversations || []).map(conv => {
-      const isUserA = conv.participant_a === userId;
-      const otherId = isUserA ? conv.participant_b : conv.participant_a;
-      const otherDisplayName = isUserA ? conv.display_name_b : conv.display_name_a;
-
-      return {
-        roomId: conv.id,
-        otherId,
-        otherDisplayName: otherDisplayName || otherId,
-        lastMessage: conv.last_message || '',
-        lastMessageTime: conv.last_message_time || conv.created_at,
-        createdAt: conv.created_at,
-      };
-    });
-
-    return res.json({ conversations: transformedConversations });
+    const local = messagesStore[roomId] || [];
+    // Normalize to the same shape as Supabase returns (snake_case)
+    const out = (local || []).map(m => ({
+      id: m.id,
+      room_id: m.roomId || m.room_id,
+      from_id: m.fromId || m.from_id,
+      from_name: m.fromName || m.from_name,
+      text: m.text,
+      created_at: (typeof m.created_at !== 'undefined') ? m.created_at : (typeof m.createdAt !== 'undefined' ? new Date(m.createdAt).toISOString() : new Date().toISOString())
+    })).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    return res.json({ messages: out });
   } catch (err) {
-    console.error('Error loading conversations:', err);
-    return res.status(500).json({ error: 'Failed to load conversations', details: err.message });
+    console.error('Error loading messages from local store:', err);
+    return res.status(500).json({ error: 'Failed to load messages', details: err.message || err });
+  }
+});
+
+// ============= GET CONVERSATIONS =============
+app.post('/api/conversations', async (req, res) => {
+  // accept userId from query OR body
+  const userId = req.query.userId || req.body.userId || 'me';
+  const { participantId, participantDisplayName, participantImage } = req.body;
+  if (!participantId) return res.status(400).json({ error: 'participantId required' });
+
+  const roomId = [userId, participantId].sort().join('_');
+  const createdAtNum = toNumericTs(req.body.createdAt || Date.now());
+
+  if (mongoose.connection.readyState) {
+    try {
+      const existing = await Conversation.findOne({ roomId });
+      if (!existing) {
+        const meta = {};
+        meta[participantId] = { displayName: participantDisplayName || participantId, image: participantImage || null };
+        meta[userId] = { displayName: 'You' };
+        await Conversation.create({ roomId, participants: [userId, participantId], meta, createdAt: createdAtNum });
+      }
+      return res.json({ roomId });
+    } catch (err) {
+      console.error('create convo err', err);
+      return res.status(500).json({ error: err.message || 'create convo failed' });
+    }
+  } else {
+    // file/in-memory fallback
+    const convo = { roomId, otherId: participantId, otherDisplayName: participantDisplayName || null, otherImage: participantImage || null, createdAt: createdAtNum };
+    conversationsByUser[userId] = conversationsByUser[userId] || [];
+    conversationsByUser[participantId] = conversationsByUser[participantId] || [];
+    if (!conversationsByUser[userId].some(c => c.roomId === roomId)) conversationsByUser[userId].push(convo);
+    if (!conversationsByUser[participantId].some(c => c.roomId === roomId)) {
+      conversationsByUser[participantId].push({ roomId, otherId: userId, otherDisplayName: 'You', otherImage: null, createdAt: createdAtNum });
+    }
+    // persist to disk if using file fallback
+    try { saveConvosFile(); } catch (e) { console.error('failed saving convos to disk', e); }
+    return res.json({ roomId });
   }
 });
 
 // ============= CREATE CONVERSATION =============
-app.post('/api/conversations', async (req, res) => {
-  const { userId, roomId, participantId, participantDisplayName } = req.body;
+/* ---------- helpers (if not already present) ---------- */
+function toNumericTs(val) {
+  if (!val) return Date.now();
+  if (typeof val === 'number') return val;
+  const n = Date.parse(val);
+  return isNaN(n) ? Date.now() : n;
+}
 
-  if (!userId || !participantId) {
-    return res.status(400).json({ 
-      error: 'userId and participantId required',
-      received: { userId, participantId }
-    });
-  }
-
-  // Generate roomId if not provided
-  const finalRoomId = roomId || [userId, participantId].sort().join('_');
-
-  try {
-    // Check if conversation already exists
-    const { data: existing, error: checkError } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('id', finalRoomId)
-      .single();
-
-    if (existing) {
-      return res.json({ roomId: finalRoomId, message: 'Conversation already exists' });
-    }
-
-    // Get display name for current user (you might want to pass this from frontend)
-    const currentUserDisplayName = 'You'; // Or fetch from Clerk if needed
-
-    // Create new conversation
-    const { data: newConversation, error: insertError } = await supabase
-      .from('conversations')
-      .insert({
-        id: finalRoomId,
-        participant_a: userId,
-        participant_b: participantId,
-        display_name_a: currentUserDisplayName,
-        display_name_b: participantDisplayName || participantId,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('Supabase error creating conversation:', insertError);
-      return res.status(500).json({ 
-        error: 'Failed to create conversation', 
-        details: insertError.message 
-      });
-    }
-
-    return res.json({ 
-      roomId: finalRoomId, 
-      conversation: newConversation,
-      message: 'Conversation created successfully' 
-    });
-  } catch (err) {
-    console.error('Error creating conversation:', err);
-    return res.status(500).json({ 
-      error: 'Failed to create conversation', 
-      details: err.message 
-    });
-  }
-});
-
-// ============= GET MESSAGES FOR A ROOM =============
-app.get('/api/messages', async (req, res) => {
-  const { roomId } = req.query;
-
-  if (!roomId) {
-    return res.status(400).json({ error: 'roomId required' });
-  }
+/* ---------- GET /api/conversations (returns list for a user) ---------- */
+app.get('/api/conversations', async (req, res) => {
+  const userId = req.query.userId || req.body.userId;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
 
   try {
-    const { data: messages, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('room_id', roomId)
-      .order('created_at', { ascending: true })
-      .limit(1000);
+    // 1) Supabase primary (server-side)
+    if (typeof supabase !== 'undefined' && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
+      // conversations table assumed with columns: id (roomId), participant_a, participant_b, display_name_a, display_name_b, created_at
+      const { data: rows, error } = await supabase
+        .from('conversations')
+        .select('id, participant_a, participant_b, display_name_a, display_name_b, created_at')
+        .or(`participant_a.eq.${userId},participant_b.eq.${userId}`)
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
-    if (error) {
-      console.error('Supabase error fetching messages:', error);
-      return res.status(500).json({ 
-        error: 'Failed to load messages', 
-        details: error.message 
-      });
-    }
-
-    return res.json({ messages: messages || [] });
-  } catch (err) {
-    console.error('Error loading messages:', err);
-    return res.status(500).json({ 
-      error: 'Failed to load messages', 
-      details: err.message 
-    });
-  }
-});
-
-// ============= SEND MESSAGE =============
-app.post('/api/messages', async (req, res) => {
-  const { userId, roomId, text } = req.body;
-
-  if (!roomId || !text) {
-    return res.status(400).json({ 
-      error: 'roomId & text required',
-      received: { userId, roomId, text: text ? 'present' : 'missing' }
-    });
-  }
-
-  if (!userId) {
-    return res.status(400).json({ 
-      error: 'userId required',
-      received: { userId, roomId, text: 'present' }
-    });
-  }
-
-  try {
-    // Get user display name (optional - can be stored or fetched from Clerk)
-    let fromName = userId;
-    if (clerkClient && process.env.CLERK_SECRET_KEY) {
-      try {
-        const user = await clerkClient.users.getUser(userId);
-        fromName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || userId;
-      } catch (err) {
-        console.warn('Could not fetch user name from Clerk:', err.message);
+      if (error) {
+        console.warn('Supabase: convos fetch error', error);
+        // fall through to other layers
+      } else {
+        const convos = (rows || []).map(r => {
+          const otherId = (r.participant_a === userId) ? r.participant_b : r.participant_a;
+          const otherDisplayName = (r.participant_a === userId) ? (r.display_name_b || otherId) : (r.display_name_a || otherId);
+          return {
+            roomId: r.id,
+            otherId,
+            otherDisplayName,
+            otherImage: null,
+            createdAt: r.created_at || null,
+            lastMessage: "",           // you can join messages table if you want last message
+            lastMessageTime: r.created_at || null
+          };
+        });
+        return res.json({ conversations: convos });
       }
     }
 
-    // Create message in Supabase
-    const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    
-    const { data: newMessage, error: insertError } = await supabase
-      .from('messages')
-      .insert({
-        id: messageId,
-        room_id: roomId,
-        from_id: userId,
-        from_name: fromName,
-        text: text.trim(),
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('Supabase error creating message:', insertError);
-      return res.status(500).json({ 
-        error: 'Failed to send message', 
-        details: insertError.message 
+    // 2) MongoDB fallback
+    if (mongoose.connection.readyState) {
+      const convos = await Conversation.find({ participants: userId }).sort({ createdAt: -1 }).lean();
+      const out = convos.map(c => {
+        const otherId = c.participants.find(p => p !== userId) || (c.participants[0] || null);
+        return {
+          roomId: c.roomId,
+          otherId,
+          otherDisplayName: c.meta?.[otherId]?.displayName || otherId,
+          otherImage: c.meta?.[otherId]?.image || null,
+          createdAt: c.createdAt,
+          lastMessage: '',
+          lastMessageTime: c.createdAt
+        };
       });
+      return res.json({ conversations: out });
     }
 
-    // Update conversation's last message (optional but recommended for performance)
-    try {
-      await supabase
-        .from('conversations')
-        .update({
-          last_message: text.trim().substring(0, 100), // Store preview
-          last_message_time: new Date().toISOString(),
-        })
-        .eq('id', roomId);
-    } catch (updateErr) {
-      console.warn('Failed to update conversation last message:', updateErr);
-      // Don't fail the request if this update fails
-    }
+    // 3) File/in-memory fallback
+    const convos = conversationsByUser[userId] || [];
+    return res.json({ conversations: convos });
 
-    // Supabase Realtime will automatically broadcast this INSERT to subscribed clients
-    return res.json({ 
-      ok: true, 
-      message: newMessage,
-      roomId 
-    });
   } catch (err) {
-    console.error('Error sending message:', err);
-    return res.status(500).json({ 
-      error: 'Failed to send message', 
-      details: err.message 
-    });
+    console.error('Get conversations error', err);
+    return res.status(500).json({ error: 'Failed to load conversations', details: err.message || err });
   }
+});
+// ============= SEND MESSAGE =============
+app.post('/api/messages', async (req, res) => {
+  // accept userId from query OR body (frontend sends it in body)
+  const userId = req.query.userId || req.body.userId || 'me';
+  const { roomId, text } = req.body;
+  if (!roomId || !text) return res.status(400).json({ error: 'roomId & text required' });
+
+  // Ensure createdAt is numeric (ms)
+  const createdAtNum = toNumericTs(req.body.createdAt || Date.now());
+
+  // Prepare payload with DB-friendly fields
+  // Use both camelCase and snake_case so whichever storage layer you use can map them
+  const payload = {
+    id: `msg_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+    roomId,
+    fromId: userId,
+    fromName: req.body.fromName || userId,
+    text,
+    createdAt: createdAtNum,   // for Mongo / file
+    created_at: createdAtNum,  // helpful if your Postgres layer expects snake_case
+  };
+
+  // Save to Mongo or file/in-memory fallback
+  if (mongoose.connection.readyState) {
+    try {
+      // If you're saving to Mongo, use createdAt
+      await Message.create({
+        id: payload.id,
+        roomId: payload.roomId,
+        fromId: payload.fromId,
+        fromName: payload.fromName,
+        text: payload.text,
+        createdAt: payload.createdAt
+      });
+    } catch (err) {
+      console.error('save message err (mongo)', err);
+      return res.status(500).json({ error: 'save message failed', details: String(err) });
+    }
+  } else {
+    // fallback in-memory + file write
+    messagesStore[roomId] = messagesStore[roomId] || [];
+    messagesStore[roomId].push(payload);
+    try { saveMessagesFile(); } catch (e) { console.error('failed saving messages to disk', e); }
+  }
+
+  // If you have a Postgres/Supabase layer that expects snake_case 'created_at' bigint, pass that when inserting there.
+  // For example: (pseudo)
+  // await pg.query('INSERT INTO messages (id, room_id, from_id, from_name, text, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+  //   [payload.id, payload.roomId, payload.fromId, payload.fromName, payload.text, payload.created_at]);
+
+  // Trigger Pusher if available
+  if (pusher) {
+    try {
+      await pusher.trigger(`private-chat_${roomId}`, 'message', payload);
+    } catch (err) {
+      console.error('pusher trigger err:', err);
+      return res.status(500).json({ error: 'pusher error', details: String(err) });
+    }
+  } else {
+    console.log('Message saved (Pusher disabled):', payload);
+  }
+
+  // Return payload in a shape the frontend expects (try to include both snake_case and camelCase)
+  return res.json({
+    ok: true,
+    payload: {
+      id: payload.id,
+      room_id: payload.roomId,
+      roomId: payload.roomId,
+      from_id: payload.fromId,
+      fromId: payload.fromId,
+      from_name: payload.fromName,
+      fromName: payload.fromName,
+      text: payload.text,
+      created_at: payload.created_at,
+      createdAt: payload.createdAt
+    }
+  });
 });
 
 // ============= ERROR HANDLER =============
