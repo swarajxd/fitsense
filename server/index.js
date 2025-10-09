@@ -1,7 +1,8 @@
-// index.js — server with Mongo persistence (preferred) + file-backed fallback
+// server/index.js - Fixed with Supabase integration
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
@@ -15,7 +16,6 @@ const PORT = process.env.PORT || 7000;
 // Multer configuration for file uploads
 const upload = multer({ dest: 'uploads/' });
 
-/*upload posts*/
 
 /* ---------- Middleware ---------- */
 // right after your requires/imports
@@ -23,18 +23,25 @@ console.log('require postsRouter =>', require('./routes/posts'));
 console.log('cors type =>', typeof require('cors'));
 
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // parse JSON and form bodies (Pusher may send urlencoded)
+app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 
-/* --- helper to safely mount routers --- */
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE // Use service role key for server-side operations
+);
+
+console.log('Supabase initialized:', !!supabase);
+
+// Helper to safely mount routers
 function safeMount(mountPath, moduleOrName) {
-  // moduleOrName may be a module value (router) or a string path
   let mod = moduleOrName;
   if (typeof moduleOrName === 'string') {
     try {
       mod = require(moduleOrName);
     } catch (err) {
-      console.warn(`safeMount: require failed for '${moduleOrName}': ${err && err.code ? err.code : err.message}`);
+      console.warn(`safeMount: require failed for '${moduleOrName}': ${err.message}`);
       return;
     }
   }
@@ -44,36 +51,30 @@ function safeMount(mountPath, moduleOrName) {
     return;
   }
 
-  // prefer default export if present (interop ESM)
   if (mod && mod.default) mod = mod.default;
 
   const isFunction = typeof mod === 'function';
   const looksLikeRouter = mod && (typeof mod.use === 'function' || typeof mod.handle === 'function');
-
-  console.log(`safeMount: mounting ${mountPath} => type: ${typeof mod}${ looksLikeRouter ? ' (looks like router)' : '' }`);
 
   if (isFunction || looksLikeRouter) {
     try {
       app.use(mountPath, mod);
       console.log(`Mounted ${mountPath}`);
     } catch (err) {
-      console.error(`Failed to mount ${mountPath}:`, err && err.message);
+      console.error(`Failed to mount ${mountPath}:`, err.message);
     }
   } else {
-    console.warn(`Module for ${mountPath} is not a router/middleware (type: ${typeof mod}). Skipping mount.`);
+    console.warn(`Module for ${mountPath} is not a router/middleware. Skipping mount.`);
   }
 }
 
-/* mount posts router (you already required postsRouter) */
+// Mount existing routes
 safeMount('/api/posts', postsRouter);
-
-/* ---------- Existing routes (Cloudinary / uploads / profile) ---------- */
 safeMount('/api/uploads', './routes/upload');
 safeMount('/api/profile', './routes/profile');
-
-/* server/index.js (add) */
-safeMount('/api/posts', './routes/feed'); // NOTE: mounts feed at same base; keep if feed router is intended
+safeMount('/api/posts', './routes/feed');
 safeMount('/api/interactions', './routes/interactions');
+
 
 /* ---------- AI Model Analysis Endpoint ---------- */
 app.post('/api/analyze', upload.single('image'), async (req, res) => {
@@ -200,17 +201,18 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
   }
 });
 
-/* ---------- Optional Clerk server SDK (only used if CLERK_API_KEY provided) ---------- */
+
 let clerkClient = null;
 try {
   const clerk = require('@clerk/clerk-sdk-node');
   clerkClient = clerk?.clerkClient || clerk?.Clerk || null;
   if (clerkClient && !process.env.CLERK_SECRET_KEY) {
-    console.warn('CLERK_API_KEY not provided — Clerk SDK loaded but will not be used without CLERK_API_KEY.');
+    console.warn('CLERK_SECRET_KEY not provided — Clerk SDK loaded but will not be used.');
   }
 } catch (err) {
   console.warn('Clerk SDK not available (dev fallback will be used).');
 }
+
 
 /* ----------------- MongoDB ----------------- */
 async function connectMongo() {
@@ -324,7 +326,7 @@ function saveConvosFile() {
   }
 }
 
-/* demo users if Clerk not available */
+
 const demoUsers = [
   { id: "user1", username: "ayaan", displayName: "Ayaan Malik", imageUrl: null },
   { id: "user2", username: "sana", displayName: "Sana R.", imageUrl: null },
@@ -332,6 +334,7 @@ const demoUsers = [
   { id: "user4", username: "rohit", displayName: "Rohit Patel", imageUrl: null },
 ];
 // Add this after your /api/analyze endpoint (around line 200)
+
 
 app.post('/api/generate-outfit-image', async (req, res) => {
   try {
@@ -411,10 +414,12 @@ app.post('/api/generate-outfit-image', async (req, res) => {
   }
 });
 /* ----------------- /api/users ----------------- */
+
 app.get('/api/users', async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
-    if (!process.env.CLERK_API_KEY || !clerkClient) {
+    
+    if (!process.env.CLERK_SECRET_KEY || !clerkClient) {
       const qlc = q.toLowerCase();
       const filtered = demoUsers.filter(u =>
         !qlc ||
@@ -441,157 +446,242 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-/* ----------------- Conversations endpoints ----------------- */
+// ============= GET CONVERSATIONS =============
 app.get('/api/conversations', async (req, res) => {
-  const userId = req.query.userId || 'me';
-  if (mongoose.connection.readyState) {
-    try {
-      const convos = await Conversation.find({ participants: userId }).sort({ createdAt: -1 }).lean();
-      const out = convos.map(c => {
-        const otherId = c.participants.find(p => p !== userId) || (c.participants[0] || null);
-        return { roomId: c.roomId, otherId, otherDisplayName: c.meta?.[otherId]?.displayName || otherId, otherImage: c.meta?.[otherId]?.image || null, createdAt: c.createdAt };
-      });
-      return res.json({ conversations: out });
-    } catch (err) {
-      console.error('get convos err', err);
-      return res.status(500).json({ error: 'failed to load conversations' });
-    }
-  } else {
-    const convos = conversationsByUser[userId] || [];
-    return res.json({ conversations: convos });
-  }
-});
-
-app.post('/api/conversations', async (req, res) => {
-  const userId = req.query.userId || 'me';
-  const { participantId, participantDisplayName, participantImage } = req.body;
-  if (!participantId) return res.status(400).json({ error: 'participantId required' });
-
-  const roomId = [userId, participantId].sort().join('_');
-
-  if (mongoose.connection.readyState) {
-    try {
-      const existing = await Conversation.findOne({ roomId });
-      if (!existing) {
-        const meta = {};
-        meta[participantId] = { displayName: participantDisplayName || participantId, image: participantImage || null };
-        meta[userId] = { displayName: 'You' };
-        await Conversation.create({ roomId, participants: [userId, participantId], meta, createdAt: Date.now() });
-      }
-      return res.json({ roomId });
-    } catch (err) {
-      console.error('create convo err', err);
-      return res.status(500).json({ error: err.message || 'create convo failed' });
-    }
-  } else {
-    // fallback memory + file write
-    const convo = { roomId, otherId: participantId, otherDisplayName: participantDisplayName || null, otherImage: participantImage || null, createdAt: Date.now() };
-    conversationsByUser[userId] = conversationsByUser[userId] || [];
-    conversationsByUser[participantId] = conversationsByUser[participantId] || [];
-
-    if (!conversationsByUser[userId].some(c => c.roomId === roomId)) conversationsByUser[userId].push(convo);
-    if (!conversationsByUser[participantId].some(c => c.roomId === roomId)) {
-      conversationsByUser[participantId].push({ roomId, otherId: userId, otherDisplayName: 'You', otherImage: null, createdAt: Date.now() });
-    }
-
-    // persist to disk immediately
-    try { saveConvosFile(); } catch (e) { console.error('failed saving convos to disk', e); }
-
-    return res.json({ roomId });
-  }
-});
-
-/* ----------------- Pusher auth (private channels) ----------------- */
-app.post('/api/pusher/auth', (req, res) => {
-  const { socket_id, channel_name } = req.body;
-  if (!socket_id || !channel_name) return res.status(400).send('Missing socket_id or channel_name');
-
-  if (!pusher) {
-    console.warn('Auth request but Pusher not configured.');
-    return res.status(500).send('Pusher not configured on server.');
+  const userId = req.query.userId;
+  
+  if (!userId || userId === 'anon') {
+    return res.status(400).json({ error: 'Valid userId required' });
   }
 
   try {
-    // Optionally verify the user via Clerk token in req.headers.authorization here
-    const auth = pusher.authenticate(socket_id, channel_name);
-    res.json(auth);
+    // Query conversations where user is either participant_a or participant_b
+    const { data: conversations, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .or(`participant_a.eq.${userId},participant_b.eq.${userId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Supabase error fetching conversations:', error);
+      return res.status(500).json({ error: 'Failed to load conversations', details: error.message });
+    }
+
+    // Transform conversations to include other participant info
+    const transformedConversations = (conversations || []).map(conv => {
+      const isUserA = conv.participant_a === userId;
+      const otherId = isUserA ? conv.participant_b : conv.participant_a;
+      const otherDisplayName = isUserA ? conv.display_name_b : conv.display_name_a;
+
+      return {
+        roomId: conv.id,
+        otherId,
+        otherDisplayName: otherDisplayName || otherId,
+        lastMessage: conv.last_message || '',
+        lastMessageTime: conv.last_message_time || conv.created_at,
+        createdAt: conv.created_at,
+      };
+    });
+
+    return res.json({ conversations: transformedConversations });
   } catch (err) {
-    console.error('pusher auth err', err);
-    res.status(500).send('pusher auth error');
+    console.error('Error loading conversations:', err);
+    return res.status(500).json({ error: 'Failed to load conversations', details: err.message });
   }
 });
 
-/* ----------------- Messages: POST (send) and GET (fetch) ----------------- */
-app.post('/api/messages', async (req, res) => {
-  const userId = req.query.userId || 'me';
-  const { roomId, text } = req.body;
-  if (!roomId || !text) return res.status(400).json({ error: 'roomId & text required' });
+// ============= CREATE CONVERSATION =============
+app.post('/api/conversations', async (req, res) => {
+  const { userId, roomId, participantId, participantDisplayName } = req.body;
 
-  const payload = {
-    id: `msg_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
-    roomId,
-    fromId: userId,
-    fromName: userId,
-    text,
-    createdAt: Date.now()
-  };
-
-  // Save to Mongo or file/in-memory fallback
-  if (mongoose.connection.readyState) {
-    try {
-      await Message.create(payload);
-    } catch (err) {
-      console.error('save message err', err);
-      return res.status(500).json({ error: 'save message failed', details: String(err) });
-    }
-  } else {
-    messagesStore[roomId] = messagesStore[roomId] || [];
-    messagesStore[roomId].push(payload);
-    // persist file immediately
-    try { saveMessagesFile(); } catch (e) { console.error('failed saving messages to disk', e); }
+  if (!userId || !participantId) {
+    return res.status(400).json({ 
+      error: 'userId and participantId required',
+      received: { userId, participantId }
+    });
   }
 
-  // Trigger Pusher if available (real-time)
-  if (pusher) {
-    try {
-      await pusher.trigger(`private-chat_${roomId}`, 'message', payload);
-    } catch (err) {
-      console.error('pusher trigger err:', err);
-      return res.status(500).json({ error: 'pusher error', details: String(err) });
-    }
-  } else {
-    console.log('Message saved (Pusher disabled):', payload);
-  }
+  // Generate roomId if not provided
+  const finalRoomId = roomId || [userId, participantId].sort().join('_');
 
-  return res.json({ ok: true, payload });
+  try {
+    // Check if conversation already exists
+    const { data: existing, error: checkError } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('id', finalRoomId)
+      .single();
+
+    if (existing) {
+      return res.json({ roomId: finalRoomId, message: 'Conversation already exists' });
+    }
+
+    // Get display name for current user (you might want to pass this from frontend)
+    const currentUserDisplayName = 'You'; // Or fetch from Clerk if needed
+
+    // Create new conversation
+    const { data: newConversation, error: insertError } = await supabase
+      .from('conversations')
+      .insert({
+        id: finalRoomId,
+        participant_a: userId,
+        participant_b: participantId,
+        display_name_a: currentUserDisplayName,
+        display_name_b: participantDisplayName || participantId,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Supabase error creating conversation:', insertError);
+      return res.status(500).json({ 
+        error: 'Failed to create conversation', 
+        details: insertError.message 
+      });
+    }
+
+    return res.json({ 
+      roomId: finalRoomId, 
+      conversation: newConversation,
+      message: 'Conversation created successfully' 
+    });
+  } catch (err) {
+    console.error('Error creating conversation:', err);
+    return res.status(500).json({ 
+      error: 'Failed to create conversation', 
+      details: err.message 
+    });
+  }
 });
 
-/* GET messages for a room (used when opening a conversation) */
+// ============= GET MESSAGES FOR A ROOM =============
 app.get('/api/messages', async (req, res) => {
-  const roomId = req.query.roomId;
-  if (!roomId) return res.status(400).json({ error: 'roomId required' });
+  const { roomId } = req.query;
 
-  if (mongoose.connection.readyState) {
-    try {
-      const list = await Message.find({ roomId }).sort({ createdAt: 1 }).limit(1000).lean();
-      return res.json({ messages: list });
-    } catch (err) {
-      console.error('get messages err', err);
-      return res.status(500).json({ error: 'failed to load messages' });
+  if (!roomId) {
+    return res.status(400).json({ error: 'roomId required' });
+  }
+
+  try {
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true })
+      .limit(1000);
+
+    if (error) {
+      console.error('Supabase error fetching messages:', error);
+      return res.status(500).json({ 
+        error: 'Failed to load messages', 
+        details: error.message 
+      });
     }
-  } else {
-    const list = messagesStore[roomId] || [];
-    return res.json({ messages: list });
+
+    return res.json({ messages: messages || [] });
+  } catch (err) {
+    console.error('Error loading messages:', err);
+    return res.status(500).json({ 
+      error: 'Failed to load messages', 
+      details: err.message 
+    });
   }
 });
 
-/* ---------- Generic error handler ---------- */
+// ============= SEND MESSAGE =============
+app.post('/api/messages', async (req, res) => {
+  const { userId, roomId, text } = req.body;
+
+  if (!roomId || !text) {
+    return res.status(400).json({ 
+      error: 'roomId & text required',
+      received: { userId, roomId, text: text ? 'present' : 'missing' }
+    });
+  }
+
+  if (!userId) {
+    return res.status(400).json({ 
+      error: 'userId required',
+      received: { userId, roomId, text: 'present' }
+    });
+  }
+
+  try {
+    // Get user display name (optional - can be stored or fetched from Clerk)
+    let fromName = userId;
+    if (clerkClient && process.env.CLERK_SECRET_KEY) {
+      try {
+        const user = await clerkClient.users.getUser(userId);
+        fromName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || userId;
+      } catch (err) {
+        console.warn('Could not fetch user name from Clerk:', err.message);
+      }
+    }
+
+    // Create message in Supabase
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    
+    const { data: newMessage, error: insertError } = await supabase
+      .from('messages')
+      .insert({
+        id: messageId,
+        room_id: roomId,
+        from_id: userId,
+        from_name: fromName,
+        text: text.trim(),
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Supabase error creating message:', insertError);
+      return res.status(500).json({ 
+        error: 'Failed to send message', 
+        details: insertError.message 
+      });
+    }
+
+    // Update conversation's last message (optional but recommended for performance)
+    try {
+      await supabase
+        .from('conversations')
+        .update({
+          last_message: text.trim().substring(0, 100), // Store preview
+          last_message_time: new Date().toISOString(),
+        })
+        .eq('id', roomId);
+    } catch (updateErr) {
+      console.warn('Failed to update conversation last message:', updateErr);
+      // Don't fail the request if this update fails
+    }
+
+    // Supabase Realtime will automatically broadcast this INSERT to subscribed clients
+    return res.json({ 
+      ok: true, 
+      message: newMessage,
+      roomId 
+    });
+  } catch (err) {
+    console.error('Error sending message:', err);
+    return res.status(500).json({ 
+      error: 'Failed to send message', 
+      details: err.message 
+    });
+  }
+});
+
+// ============= ERROR HANDLER =============
 app.use((err, req, res, next) => {
-  console.error('Unhandled server error', err);
+  console.error('Unhandled server error:', err);
   res.status(500).json({ error: err?.message || 'Internal server error' });
 });
 
-/* ---------- Start server ---------- */
+// ============= START SERVER =============
 app.listen(PORT, () => {
   console.log(`Dev server running on http://localhost:${PORT}`);
+  console.log('Supabase URL:', process.env.SUPABASE_URL ? 'configured' : 'NOT configured');
+  console.log('Supabase Service Role:', process.env.SUPABASE_SERVICE_ROLE ? 'configured' : 'NOT configured');
+
 });
