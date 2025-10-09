@@ -36,6 +36,13 @@
       "otherDisplayName": "You",
       "otherImage": null,
       "createdAt": 1759040357981
+    },
+    {
+      "roomId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM_user_32XWtuHgKbGrbdOqMlz8ujfpd6P",
+      "otherId": "user_32XWtuHgKbGrbdOqMlz8ujfpd6P",
+      "otherDisplayName": "You",
+      "otherImage": null,
+      "createdAt": 1760031305276
     }
   ],
   "user_32XWDkut2w8yKqSIzwDc3ywEWaK": [
@@ -147,6 +154,15 @@
       "lastMessage": "hi",
       "lastMessageTime": 1760030390368,
       "createdAt": 1760030390368
+    }
+  ],
+  "user_32XWtuHgKbGrbdOqMlz8ujfpd6P": [
+    {
+      "roomId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM_user_32XWtuHgKbGrbdOqMlz8ujfpd6P",
+      "otherId": "user_32C5tzaPF4tl43EYJMFYtt7MQFM",
+      "otherDisplayName": "mentos_on_pizza",
+      "otherImage": null,
+      "createdAt": 1760031305276
     }
   ]
 }
