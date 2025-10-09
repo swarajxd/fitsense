@@ -20,6 +20,11 @@ console.log('cors type =>', typeof require('cors'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // parse JSON and form bodies (Pusher may send urlencoded)
 app.use(cors());
+if (process.env.NODE_ENV === "production") {
+  console.log = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+}
 
 /* --- helper to safely mount routers --- */
 function safeMount(mountPath, moduleOrName) {

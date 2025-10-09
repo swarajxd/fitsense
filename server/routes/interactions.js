@@ -18,7 +18,7 @@ function getIds(req) {
 // POST /api/interactions/follow
 router.post('/follow', async (req, res) => {
   const { followerId, followeeId } = getIds(req);
-  console.log('[FOLLOW] request body:', { followerId, followeeId });
+  
 
   if (!followerId || !followeeId) {
     console.warn('[FOLLOW] Missing IDs', { followerId, followeeId });
@@ -57,7 +57,7 @@ router.post('/follow', async (req, res) => {
       return errRes(res, 'Follow failed', 500);
     }
 
-    console.log('[FOLLOW] inserted:', inserted);
+    
     return res.json({ ok: true, alreadyFollowing: false, follow: inserted?.[0] ?? null });
   } catch (err) {
     console.error('[FOLLOW] exception:', err);
@@ -68,7 +68,7 @@ router.post('/follow', async (req, res) => {
 // POST /api/interactions/unfollow  (keeps backward compatibility)
 router.post('/unfollow', async (req, res) => {
   const { followerId, followeeId } = getIds(req);
-  console.log('[UNFOLLOW][POST] request body:', { followerId, followeeId });
+  
 
   if (!followerId || !followeeId) return errRes(res, 'Missing IDs', 400);
 
@@ -83,7 +83,6 @@ router.post('/unfollow', async (req, res) => {
       return errRes(res, 'Unfollow failed', 500);
     }
 
-    console.log('[UNFOLLOW][POST] success, deleted rows:', (data || []).length, { followerId, followeeId });
     return res.json({ ok: true, deleted: (data || []).length });
   } catch (err) {
     console.error('[UNFOLLOW][POST] exception:', err);
@@ -95,7 +94,7 @@ router.post('/unfollow', async (req, res) => {
 // This is the robust endpoint the client was calling (DELETE with query params)
 router.delete('/follow', async (req, res) => {
   const { followerId, followeeId } = getIds(req);
-  console.log('[UNFOLLOW][DELETE] request data:', { followerId, followeeId });
+  
 
   if (!followerId || !followeeId) return errRes(res, 'Missing IDs', 400);
 
@@ -109,8 +108,8 @@ router.delete('/follow', async (req, res) => {
       console.error('[UNFOLLOW][DELETE] supabase error:', error);
       return errRes(res, 'Unfollow failed', 500);
     }
+    
 
-    console.log('[UNFOLLOW][DELETE] success, deleted rows:', (data || []).length, { followerId, followeeId });
     return res.json({ ok: true, deleted: (data || []).length });
   } catch (err) {
     console.error('[UNFOLLOW][DELETE] exception:', err);
