@@ -1,5 +1,7 @@
 // src/components/HomeCard.jsx
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom"; // add useNavigate
+
 import "./HomeCard.css";
 import {
   FaHeart,
@@ -17,7 +19,8 @@ export default function HomeCard({
   post,
   mode = "forYou",
     authorAvatar = null,         // <-- explicit prop (only used in profile mode)
-
+  authorId = null,   // <-- new prop
+  isOwnProfile = false,
   onToggleFollow = () => {},
   onToggleLike = () => {},
   onShare = () => {},
@@ -25,6 +28,7 @@ export default function HomeCard({
   onEdit = () => {},         // <-- new: edit handler
   onDelete = () => {},       // <-- new: delete handler
 }) {
+  const navigate = useNavigate();
   const { user } = useUser();
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -240,7 +244,8 @@ export default function HomeCard({
               </button>
 
               {/* If in profile mode expose Edit/Delete in the dropdown too (useful for mobile) */}
-              {mode === "profile" && (
+              {/* Only show Edit/Delete in dropdown for profile owner */}
+              {mode === "profile" && isOwnProfile && (
                 <>
                   <button
                     type="button"
@@ -261,38 +266,50 @@ export default function HomeCard({
                   </button>
                 </>
               )}
+
             </div>
           )}
         </div>
 
         {hovered && (
-  <div className="top-left-info">
-    <div className="top-left-pfp-container">
-      {/* compute avatarSrc: only prefer resolved profile avatar in profile mode */}
-      <img
-        src={
-          mode === "profile"
-            ? (authorAvatar || post.authorAvatar || post.avatar || post.profilePic || profilePicFallback)
-            : (post.avatar || post.profilePic || profilePicFallback)
-        }
-        alt={post.author ? `${post.author} avatar` : "avatar"}
-        className="top-left-pfp"
-        onError={(e) => {
-          e.currentTarget.onerror = null;
-          e.currentTarget.src = profilePicFallback;
-        }}
-        loading="lazy"
-      />
-    </div>
-    <div className="top-left-username">{post.author ?? post.user_id}</div>
+  <div className="top-left-info"
+  role="button"
+  tabIndex={0}
+  onClick={(e) => {
+    e.stopPropagation();
+    const id = authorId || post?.raw?.user_id || post?.user_id || post?.author || post?.authorId || post?.username;
+    if (!id) return;
+    navigate(`/profile/${encodeURIComponent(id)}`);
+  }}
+  onKeyDown={(e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      const id = authorId || post?.raw?.user_id || post?.user_id || post?.author || post?.authorId || post?.username;
+      if (!id) return;
+      navigate(`/profile/${encodeURIComponent(id)}`);
+    }
+  }}
+  style={{ cursor: "pointer" }}
+>
+  <div className="top-left-pfp-container">
+    <img
+      src={authorAvatar || post.avatar || post.authorAvatar || post.profilePic || "/path/to/fallback.jpg"}
+      alt={post.author ? `${post.author} avatar` : "avatar"}
+      className="top-left-pfp"
+      loading="lazy"
+      onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = "/path/to/fallback.jpg"; }}
+    />
   </div>
+  <div className="top-left-username">{post.author ?? post.username ?? prettyId(authorId)}</div>
+</div>
 )}
 
 
         <div className={`homecard-overlay ${hovered ? "visible" : ""}`}>
           <div className="overlay-actions">
             {/* Replace follow with Edit/Delete in profile mode */}
-            {mode === "profile" ? (
+            {/* Replace follow with Edit/Delete in profile mode but only if owner is viewing */}
+            {mode === "profile" && isOwnProfile ? (
               <div className="profile-actions">
                 <button className="btn-edit" onClick={handleEditClick} aria-label="Edit post">Edit</button>
                 <button className="btn-delete" onClick={handleDeleteClick} aria-label="Delete post">Delete</button>
@@ -306,6 +323,7 @@ export default function HomeCard({
                 {isFollowing ? "Unfollow" : followLabel}
               </button>
             )}
+
 
             <div className="right-actions">
               <div className="likes-count" aria-hidden>
