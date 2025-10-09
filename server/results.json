@@ -1,21 +1,3 @@
 {
-  "items": [
-    {
-      "crop_file": "det_00_crop.jpg",
-      "det_label": "short_sleeved_shirt",
-      "det_score": 0.828879177570343,
-      "color": {
-        "label": "Red",
-        "score": 0.9393
-      },
-      "pattern": {
-        "label": "Stripe",
-        "score": 0.9982
-      },
-      "season": {
-        "label": "Summer",
-        "score": 0.6765
-      }
-    }
-  ]
+  "items": []
 }
