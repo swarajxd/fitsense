@@ -25,6 +25,11 @@ console.log('cors type =>', typeof require('cors'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
+if (process.env.NODE_ENV === "production") {
+  console.log = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+}
 
 // Initialize Supabase client
 const supabase = createClient(

@@ -18,15 +18,17 @@ import { useUser } from "@clerk/clerk-react";
 export default function HomeCard({
   post,
   mode = "forYou",
-    authorAvatar = null,         // <-- explicit prop (only used in profile mode)
-  authorId = null,   // <-- new prop
+  authorAvatar = null, // <-- explicit prop (only used in profile mode)
+  authorId = null, // <-- new prop
   isOwnProfile = false,
   onToggleFollow = () => {},
   onToggleLike = () => {},
   onShare = () => {},
-  onToggleSave = () => {},   // <-- accept this prop (was missing)
-  onEdit = () => {},         // <-- new: edit handler
-  onDelete = () => {},       // <-- new: delete handler
+  onToggleSave = () => {}, // <-- accept this prop (was missing)
+  onEdit = () => {}, // <-- new: edit handler
+  onDelete = () => {}, // <-- new: delete handler
+  canEdit,   // <-- optional explicit control
+  canDelete, // <-- optional explicit control
 }) {
   const navigate = useNavigate();
   const { user } = useUser();
@@ -48,6 +50,15 @@ export default function HomeCard({
   useEffect(() => {
     setSaved(Boolean(post.saved || post.isSaved));
   }, [post.saved, post.isSaved, post.id]);
+
+  // compute whether to show edit/delete (explicit props take precedence)
+  const showEdit = (typeof canEdit !== "undefined") ? Boolean(canEdit) : Boolean(isOwnProfile);
+  const showDelete = (typeof canDelete !== "undefined") ? Boolean(canDelete) : Boolean(isOwnProfile);
+
+  // force-hide edit/delete when viewing saved tab
+  const isSavedMode = mode === "saved" || mode === "savedPosts" || mode === "saved_tab";
+  const finalShowEdit = isSavedMode ? false : showEdit;
+  const finalShowDelete = isSavedMode ? false : showDelete;
 
   const followLabel = mode === "following" ? "Unfollow" : "Follow";
   const rawLikes = post.likes ?? post.likeCount ?? 0;
@@ -113,24 +124,27 @@ export default function HomeCard({
       return;
     }
 
-    const followerId = user.id;
     const followeeId = resolveFolloweeId(post);
 
-    if (!followerId || !followeeId) {
-      console.error("Missing IDs for follow operation", { followerId, followeeId, post });
+    if (!followeeId) {
+      console.error("Missing followee id for follow operation", { post });
       alert("Could not determine the user to follow. Check console for `post` object.");
       return;
     }
 
-    const action = isFollowing ? "/api/interactions/unfollow" : "/api/interactions/follow";
+    // Optimistic local toggle — parent will perform network and update global state
     setIsFollowing((s) => !s);
+
     try {
-      await postJson(action, { followerId, followeeId });
-      try { onToggleFollow(post, !isFollowing); } catch (e) {}
+      // delegate to parent. Parent accepts either post object or id (we pass the post so parent can resolve multiple fields)
+      if (typeof onToggleFollow === "function") {
+        await onToggleFollow(post);
+      }
     } catch (err) {
-      console.error("Follow error", err);
+      console.error("Follow/unfollow (delegated) error", err);
+      // revert local optimistic toggle on error
       setIsFollowing((s) => !s);
-      alert("Could not update follow status: " + err.message);
+      alert("Could not update follow status: " + (err?.message || err));
     }
   };
 
@@ -190,6 +204,19 @@ export default function HomeCard({
     if (typeof onDelete === "function") onDelete(post);
   };
 
+  // share wrapper (calls provided onShare)
+  const handleShareClick = (e) => {
+    e?.stopPropagation?.();
+    if (typeof onShare === "function") onShare(post);
+  };
+
+  // small helper to fallback pretty id for top-left username display
+  function prettyId(id) {
+    if (!id) return "user";
+    if (typeof id === "string" && id.length <= 10) return id;
+    return String(id).slice(0, 8) + '...';
+  }
+
   return (
     <article
       className={`homecard ${mode === "profile" ? "profile-mode" : ""}`}
@@ -243,27 +270,30 @@ export default function HomeCard({
                 )}
               </button>
 
-              {/* If in profile mode expose Edit/Delete in the dropdown too (useful for mobile) */}
-              {/* Only show Edit/Delete in dropdown for profile owner */}
-              {mode === "profile" && isOwnProfile && (
+              {/* If in profile mode expose Edit/Delete in the dropdown only if allowed */}
+              {mode === "profile" && (finalShowEdit || finalShowDelete) && (
                 <>
-                  <button
-                    type="button"
-                    className="menu-item"
-                    onClick={(e) => { handleEditClick(e); setMenuOpen(false); }}
-                    role="menuitem"
-                  >
-                    <span>Edit</span>
-                  </button>
+                  {finalShowEdit && (
+                    <button
+                      type="button"
+                      className="menu-item"
+                      onClick={(e) => { handleEditClick(e); setMenuOpen(false); }}
+                      role="menuitem"
+                    >
+                      <span>Edit</span>
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    className="menu-item destructive"
-                    onClick={(e) => { handleDeleteClick(e); setMenuOpen(false); }}
-                    role="menuitem"
-                  >
-                    <span>Delete</span>
-                  </button>
+                  {finalShowDelete && (
+                    <button
+                      type="button"
+                      className="menu-item destructive"
+                      onClick={(e) => { handleDeleteClick(e); setMenuOpen(false); }}
+                      role="menuitem"
+                    >
+                      <span>Delete</span>
+                    </button>
+                  )}
                 </>
               )}
 
@@ -272,47 +302,47 @@ export default function HomeCard({
         </div>
 
         {hovered && (
-  <div className="top-left-info"
-  role="button"
-  tabIndex={0}
-  onClick={(e) => {
-    e.stopPropagation();
-    const id = authorId || post?.raw?.user_id || post?.user_id || post?.author || post?.authorId || post?.username;
-    if (!id) return;
-    navigate(`/profile/${encodeURIComponent(id)}`);
-  }}
-  onKeyDown={(e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      const id = authorId || post?.raw?.user_id || post?.user_id || post?.author || post?.authorId || post?.username;
-      if (!id) return;
-      navigate(`/profile/${encodeURIComponent(id)}`);
-    }
-  }}
-  style={{ cursor: "pointer" }}
->
-  <div className="top-left-pfp-container">
-    <img
-      src={authorAvatar || post.avatar || post.authorAvatar || post.profilePic || "/path/to/fallback.jpg"}
-      alt={post.author ? `${post.author} avatar` : "avatar"}
-      className="top-left-pfp"
-      loading="lazy"
-      onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = "/path/to/fallback.jpg"; }}
-    />
-  </div>
-  <div className="top-left-username">{post.author ?? post.username ?? prettyId(authorId)}</div>
-</div>
-)}
+          <div
+            className="top-left-info"
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              const id = authorId || post?.raw?.user_id || post?.user_id || post?.author || post?.authorId || post?.username;
+              if (!id) return;
+              navigate(`/profile/${encodeURIComponent(id)}`);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                const id = authorId || post?.raw?.user_id || post?.user_id || post?.author || post?.authorId || post?.username;
+                if (!id) return;
+                navigate(`/profile/${encodeURIComponent(id)}`);
+              }
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            <div className="top-left-pfp-container">
+              <img
+                src={authorAvatar || post.avatar || post.authorAvatar || post.profilePic || "/path/to/fallback.jpg"}
+                alt={post.author ? `${post.author} avatar` : "avatar"}
+                className="top-left-pfp"
+                loading="lazy"
+                onError={(e)=>{ e.currentTarget.onerror = null; e.currentTarget.src = "/path/to/fallback.jpg"; }}
+              />
+            </div>
+            <div className="top-left-username">{post.author ?? post.username ?? prettyId(authorId)}</div>
+          </div>
+        )}
 
 
         <div className={`homecard-overlay ${hovered ? "visible" : ""}`}>
           <div className="overlay-actions">
-            {/* Replace follow with Edit/Delete in profile mode */}
-            {/* Replace follow with Edit/Delete in profile mode but only if owner is viewing */}
-            {mode === "profile" && isOwnProfile ? (
+            {/* Show Edit/Delete only if allowed; otherwise show Follow */}
+            {finalShowEdit || finalShowDelete ? (
               <div className="profile-actions">
-                <button className="btn-edit" onClick={handleEditClick} aria-label="Edit post">Edit</button>
-                <button className="btn-delete" onClick={handleDeleteClick} aria-label="Delete post">Delete</button>
+                {finalShowEdit && <button className="btn-edit" onClick={handleEditClick} aria-label="Edit post">Edit</button>}
+                {finalShowDelete && <button className="btn-delete" onClick={handleDeleteClick} aria-label="Delete post">Delete</button>}
               </div>
             ) : (
               <button

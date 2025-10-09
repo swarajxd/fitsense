@@ -149,7 +149,7 @@ router.get('/feed', async (req, res) => {
       };
     }));
     // debug (you can remove this later)
-    console.log('[FEED OUT] sample', mapped.slice(0, 6).map(p => ({ id: p.id, likes: p.likes, liked: p.liked })));
+    
     return res.json({ posts: mapped });
   } catch (err) {
     console.error('[FEED] server error', err);
@@ -263,7 +263,7 @@ router.get('/following', async (req, res) => {
       };
     }));
     // debug log (optional, remove after verification)
- console.log('[FOLLOWING OUT] sample', mapped.slice(0, 6).map(p => ({ id: p.id, likes: p.likes, liked: p.liked })));
+ 
 
 
     return res.json({ posts: mapped });

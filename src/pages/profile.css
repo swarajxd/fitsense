@@ -225,6 +225,29 @@
   color: var(--fs-muted);
 }
 
+/*new stats style*/
+/* make stat buttons look like plain inline links */
+.fs-stats .fs-stat .stat-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.fs-stats .fs-stat .stat-link:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.fs-stats .fs-stat .stat-link b {
+  font-size: 20px;
+}
+
+
 /* Actions row: full width, buttons side by side */
 .fs-actions {
   display: flex;
