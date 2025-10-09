@@ -2,36 +2,19 @@
   "items": [
     {
       "crop_file": "det_00_crop.jpg",
-      "det_label": "trousers",
-      "det_score": 0.9927566647529602,
+      "det_label": "short_sleeved_shirt",
+      "det_score": 0.828879177570343,
       "color": {
-        "label": "Navy Blue",
-        "score": 0.4504
+        "label": "Red",
+        "score": 0.9393
       },
       "pattern": {
-        "label": "Solid",
-        "score": 0.9856
+        "label": "Stripe",
+        "score": 0.9982
       },
       "season": {
         "label": "Summer",
-        "score": 0.7512
-      }
-    },
-    {
-      "crop_file": "det_01_crop.jpg",
-      "det_label": "long_sleeved_shirt",
-      "det_score": 0.9063156843185425,
-      "color": {
-        "label": "Black",
-        "score": 0.5832
-      },
-      "pattern": {
-        "label": "Solid",
-        "score": 0.3183
-      },
-      "season": {
-        "label": "Summer",
-        "score": 0.544
+        "score": 0.6765
       }
     }
   ]

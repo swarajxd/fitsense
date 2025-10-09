@@ -23,16 +23,15 @@ function App() {
 
       {/* Routes */}
       <Routes>
+        <Route path="/" element={<MVP />} />
         <Route path="/discover" element={<Discover />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/home" element={<Home />} />
-        <Route path="/" element={<MVP />} />
         <Route path="/create" element={<Create />} />
         <Route path="/AiChat" element={<AiRecognition />} />
         <Route path="/inbox" element={<Inbox />} />
-        
       </Routes>
     </Router>
   );
