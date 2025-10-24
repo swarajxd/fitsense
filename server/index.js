@@ -478,7 +478,7 @@ app.get('/api/users', async (req, res) => {
     // 2) Supabase profiles table (if exists)
     if (typeof supabase !== 'undefined' && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE) {
       // adjust column names to your profiles schema
-      const filter = q ? `username.ilike.%${q}%` : null;
+      //const filter = q ? `username.ilike.%${q}%` : null;
       let query = supabase.from('profiles').select('id, username, full_name, avatar_url').limit(50);
       if (q) query = query.ilike('username', `%${q}%`).or(`full_name.ilike.%${q}%`);
       const { data, error } = await query;

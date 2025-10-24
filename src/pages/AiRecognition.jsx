@@ -713,7 +713,7 @@ Keep it under 200 words and be practical.`;
           <div className="welcome-screen">
             <div className="welcome-greeting">
               <h2 className="greeting-title1">
-                Hi there, Bhavith<br />What would you like to know?
+                Hi there,<br />What would you like to know?
               </h2>
               <p className="greeting-subtitle1">
                 Use one of the most common prompts<br />below or use your own to begin

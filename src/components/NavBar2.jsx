@@ -9,7 +9,7 @@ export default function NavBar2() {
   return (
     <div className="navbar2">
       <div className="info">
-        <h1><IoMailOutline /> info@kuwloagem.com</h1>
+        <h1><IoMailOutline /> fitsense@gmail.com</h1>
       </div>
 
       <div className="logocontainer">
